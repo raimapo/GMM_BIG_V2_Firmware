@@ -3,10 +3,11 @@
 /**
  * Constructor
  */
-AS5048A::AS5048A(SPI_HandleTypeDef* hspi, GPIO_TypeDef* arg_ps, uint16_t arg_cs){
+AS5048A::AS5048A(SPI_HandleTypeDef* hspi, GPIO_TypeDef* arg_ps, uint16_t arg_cs, TIM_HandleTypeDef* htim_timer){
 	_cs = arg_cs;
 	_ps = arg_ps;
 	_spi = hspi;
+	_tim_timer = htim_timer;
 	errorFlag = 0;
 	position = 0;
 }
@@ -28,7 +29,7 @@ void AS5048A::init(){
 	// velocity calculation init
 	angle_prev = 0;
 	//velocity_calc_timestamp = HAL_GetTick();
-	velocity_calc_timestamp = htim4.Instance->CNT;
+	velocity_calc_timestamp = _tim_timer->Instance->CNT;
 
 	// full rotations tracking number
 	full_rotation_offset = 0;
@@ -302,7 +303,7 @@ float AS5048A::getAngleInRad(){
 float AS5048A::getVelocity(){
   // calculate sample time
 	float Ts;
-	uint32_t cur_counter = htim4.Instance->CNT;
+	uint32_t cur_counter = _tim_timer->Instance->CNT;
 	if (cur_counter > velocity_calc_timestamp)
 	{
 		Ts = ((float)(cur_counter - velocity_calc_timestamp)) * 1e-6;

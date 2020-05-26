@@ -52,9 +52,6 @@ extern "C" {
 #define _3PI_2 4.71238898038
 #define MAX_UINT16_NUMBER 0xFFFF
 
-extern TIM_HandleTypeDef htim3;
-extern TIM_HandleTypeDef htim4;
-
 #ifdef __cplusplus
 
 class AS5048A{
@@ -64,7 +61,7 @@ class AS5048A{
 	uint16_t cs;
 	GPIO_TypeDef* _ps;
 	SPI_HandleTypeDef* _spi;
-	TIM_HandleTypeDef* _tim;
+	TIM_HandleTypeDef* _tim_timer;
 	uint8_t dout;
 	uint8_t din;
 	uint8_t clk;
@@ -76,7 +73,7 @@ class AS5048A{
 	/**
 	 *	Constructor
 	 */
-	AS5048A(SPI_HandleTypeDef *hspi, GPIO_TypeDef* arg_ps, uint16_t arg_cs);
+	AS5048A(SPI_HandleTypeDef *hspi, GPIO_TypeDef* arg_ps, uint16_t arg_cs, TIM_HandleTypeDef* htim_timer);
 	
 	/**
 	 * Initialiser

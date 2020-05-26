@@ -53,7 +53,7 @@ extern "C" {
 #define DEBUG_EEPROM 0
 #define DEBUG_INA226 0
 #define DEBUG_ENCODER 0
-#define DEBUG_MOTOR 1
+#define DEBUG_MOTOR 0
 
 /* USER CODE END Includes */
 

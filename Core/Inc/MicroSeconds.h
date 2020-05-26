@@ -28,26 +28,24 @@ extern "C" {
 #include "main.h"
 
 /**
- * Initialization routine.
- * You might need to enable access to DWT registers on Cortex-M7
- *   DWT->LAR = 0xC5ACCE55
+ * @brief Initialization routine.
+ * @note You might need to enable access to DWT registers on Cortex-M7
+ * @note for the Cortex-M7 additionally need to activate  DWT->LAR = 0xC5ACCE55
  */
 void DWT_Init(void);
 
 /**
- * Time is in microseconds (1/1000000th of a second), not to be
- * confused with millisecond (1/1000th).
- *
- * No need to check an overflow. Let it just tick :)
- *
+ * @brief Time is in microseconds (1/1000000th of a second), not to be
+ * @brief confused with millisecond (1/1000th).
+ * @note No need to check an overflow. Let it just tick :)
  * @param uint32_t us  Number of microseconds to delay for
  */
 void DWT_Delay(uint32_t us);
 
 /*
- * Calculating systics for varios timers
+ * @brief Calculating systics for varios timers
+ * @note works not so well and needs firther investigation
  */
-
 uint32_t micros(void);
 uint32_t milis(void);
 

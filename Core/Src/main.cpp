@@ -143,15 +143,22 @@ osStaticThreadDef_t defaultTaskControlBlock;
 
 /**
  * @brief AS5048A Magnetic encoder constructor
+ * @param - SPI reference
+ * @param - CS pin port
+ * @param - CS pin number
+ * @param - Timer reference for miliseconds
  */
-AS5048A angleSensor(&hspi1, GPIOA, GPIO_PIN_4);
+AS5048A angleSensor(&hspi1, GPIOA, GPIO_PIN_4, &htim4);
 
 /**
  * @brief TI DRV8313 and Field Orientation Control method constructor
  * @note Initial motor 11 poles pairs
+ * @param - initial pole number
+ * @param - Motor PWM timer reference
+ * @note  - Hard coded Motor Driver Enable and Disable. Different drivers uses different approach to enable PWM's.
  * @note Motor Control thread declaration
  */
-BLDCMotor myBLDC(11); //motor pole number
+BLDCMotor myBLDC(11, &htim3, &htim4); //motor pole number
 void StartMotorTask(void const * argument);
 
 /**
@@ -187,7 +194,7 @@ uavcan::Node<NodePoolSize>& getNode() {
  *
  */
 uint8_t str[1];
-float target_voltage = 0;
+float target_voltage = 4;
 uint8_t update_target = 0;
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
 	if(huart->Instance==USART1) {

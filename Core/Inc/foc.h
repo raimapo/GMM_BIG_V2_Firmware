@@ -109,6 +109,8 @@ class BLDCMotor {
 
 
 		uint8_t pole_pairs;
+		TIM_HandleTypeDef* _tim_motor;
+		TIM_HandleTypeDef* _tim_timer;
 
 	    // Power supply woltage
 	    float voltage_power_supply;
@@ -143,10 +145,11 @@ class BLDCMotor {
 
 	     float Ua,Ub,Uc;
 
-  		/*
-  		 * Constructor. If you do not use some pins leave it to 17.
+  		/**
+  		 * @brief Constructor. If you do not use some pins leave it to 17.
+  		 * @param Number of poles integer
   		 */
-	    BLDCMotor(int pp);
+	    BLDCMotor(int pp, TIM_HandleTypeDef* htim_motor, TIM_HandleTypeDef* htim_timer);
 
 	    /*
 	     * change Driver state

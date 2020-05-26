@@ -41,23 +41,23 @@ class EEPROM {
 	public:
 
 	/**
-	 *	Constructor
+	 *	@brief Constructor
 	 */
 	EEPROM(I2C_HandleTypeDef *hi2c);
 
 	/**
-	 * Initialiser
-	 * Sets up the I2C interface
+	 * @brief Initialiser
+	 * @note Sets up the I2C interface
 	 */
     void init(void);
 
     /**
-     * Read data manually
+     * @brief Read data manually
      */
     uint8_t readData(uint8_t * dataBuffer, uint8_t startAddress, uint8_t bytes);
 
     /**
-     * Write data manually
+     * @brief Write data manually
      */
     void writeData(uint8_t * dataBuffer, uint8_t startAddress, uint8_t bytes);
 

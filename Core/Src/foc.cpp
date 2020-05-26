@@ -3,18 +3,20 @@
 /**
 *	Constructor
 */
-BLDCMotor::BLDCMotor(int pp)
+BLDCMotor::BLDCMotor(int pp, TIM_HandleTypeDef* htim_motor, TIM_HandleTypeDef* htim_timer)
 {
   // Power supply woltage
   voltage_power_supply = DEF_POWER_SUPPLY;
 
   pole_pairs = pp;
+  _tim_motor = htim_motor;
+  _tim_timer = htim_timer;
 
   // Velocity loop config
   // PI contoroller constant
   PI_velocity.P = DEF_PI_VEL_P;
   PI_velocity.I = DEF_PI_VEL_I;
-  PI_velocity.timestamp = htim4.Instance->CNT;
+  PI_velocity.timestamp = _tim_timer->Instance->CNT;
   PI_velocity.voltage_limit = voltage_power_supply/2;
   PI_velocity.voltage_ramp = DEF_PI_VEL_U_RAMP;
   PI_velocity.voltage_prev = 0;
@@ -22,7 +24,7 @@ BLDCMotor::BLDCMotor(int pp)
 
   // velocity low pass filter
   LPF_velocity.Tf = DEF_VEL_FILTER_Tf;
-  LPF_velocity.timestamp = htim4.Instance->CNT;
+  LPF_velocity.timestamp = _tim_timer->Instance->CNT;
   LPF_velocity.prev = 0;
 
   // position loop config
@@ -36,7 +38,7 @@ BLDCMotor::BLDCMotor(int pp)
   PI_velocity_index_search.I = DEF_PI_VEL_INDEX_I;
   PI_velocity_index_search.voltage_limit = voltage_power_supply/2;
   PI_velocity_index_search.voltage_ramp = DEF_PI_VEL_INDEX_U_RAMP;
-  PI_velocity_index_search.timestamp = htim4.Instance->CNT;
+  PI_velocity_index_search.timestamp = _tim_timer->Instance->CNT;
   PI_velocity_index_search.voltage_prev = 0;
   PI_velocity_index_search.tracking_error_prev = 0;
 
@@ -64,9 +66,9 @@ void BLDCMotor::init() {
 	printf("Initilaise the motor pins\n");
 	// PWM pins
 	//Enable PWM generation at 25kHz = 76000000/(999*3)
-	HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_1);
-	HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_2);
-	HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_3);
+	HAL_TIM_PWM_Start(_tim_motor, TIM_CHANNEL_1);
+	HAL_TIM_PWM_Start(_tim_motor, TIM_CHANNEL_2);
+	HAL_TIM_PWM_Start(_tim_motor, TIM_CHANNEL_3);
 
 	// sanity check for the voltage limit configuration
 	if(PI_velocity.voltage_limit > voltage_power_supply/2) PI_velocity.voltage_limit =  voltage_power_supply/2;
@@ -186,7 +188,7 @@ float BLDCMotor::shaftAngle() {
 // shaft velocity calculation
 float BLDCMotor::shaftVelocity() {
 	float Ts;
-	uint32_t cur_counter = htim4.Instance->CNT;
+	uint32_t cur_counter = _tim_timer->Instance->CNT;
 	if (cur_counter > LPF_velocity.timestamp)
 	{
 		Ts = ((float)(cur_counter - LPF_velocity.timestamp)) * 1e-6;
@@ -291,11 +293,11 @@ void BLDCMotor::setPwm(int pinPwm, float U) {
 
   // write hardware pwm
   if (pinPwm == 3)
-	  htim3.Instance->CCR1 = U_pwm;
+	  _tim_motor->Instance->CCR1 = U_pwm;
   if (pinPwm == 1)
-	  htim3.Instance->CCR2 = U_pwm;
+	  _tim_motor->Instance->CCR2 = U_pwm;
   if (pinPwm == 2)
-	  htim3.Instance->CCR3 = U_pwm;
+	  _tim_motor->Instance->CCR3 = U_pwm;
 }
 
 
@@ -312,7 +314,7 @@ float BLDCMotor::normalizeAngle(float angle){
 // PI controller function
 float BLDCMotor::controllerPI(float tracking_error, PI_s& cont){
 	float Ts;
-	uint32_t cur_counter = htim4.Instance->CNT;
+	uint32_t cur_counter = _tim_timer->Instance->CNT;
 	if (cur_counter > cont.timestamp)
 	{
 		Ts = ((float)(cur_counter - cont.timestamp)) * 1e-6;
