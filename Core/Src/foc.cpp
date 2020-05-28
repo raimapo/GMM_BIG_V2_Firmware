@@ -47,6 +47,10 @@ BLDCMotor::BLDCMotor(int pp, TIM_HandleTypeDef* htim_motor, TIM_HandleTypeDef* h
 
   // electric angle of the zero angle
   zero_electric_angle = 0;
+
+  // default modulation is SinePWM
+  //foc_modulation = FOCModulationType::SinePWM;
+  foc_modulation = FOCModulationType::SpaceVectorPWM;
 }
 
 
@@ -255,18 +259,92 @@ void BLDCMotor::move(float target) {
 
 //Method using FOC to set Uq to the motor at the optimal angle
 void BLDCMotor::setPhaseVoltage(float Uq, float angle_el) {
+	  switch (foc_modulation)
+	  {
+	  	  case FOCModulationType::SinePWM :
+	  		  // angle normalisation in between 0 and 2pi
+	  		  // only necessary if using _sin and _cos - approximation funcitons
+	  		  angle_el = normalizeAngle(angle_el + zero_electric_angle);
+	  		  // Inverse park transform
+	  		  Ualpha =  -arm_sin_f32(angle_el) * Uq;  // -sin(angle) * Uq;
+	  		  Ubeta =  arm_cos_f32(angle_el) * Uq;    //  cos(angle) * Uq;
 
-  // angle normalisation in between 0 and 2pi
-  // only necessary if using _sin and _cos - approximation funcitons
-  float angle = normalizeAngle(angle_el + zero_electric_angle);
-  // Inverse park transform
-  Ualpha =  -arm_sin_f32(angle) * Uq;  // -sin(angle) * Uq;
-  Ubeta =  arm_cos_f32(angle) * Uq;    //  cos(angle) * Uq;
+	  		  // Clarke transform
+	  		  Ua = Ualpha  + voltage_power_supply/2;
+	  		  Ub = -0.5 * Ualpha  + _SQRT3_2 * Ubeta  + voltage_power_supply/2;
+	  		  Uc = -0.5 * Ualpha - _SQRT3_2 * Ubeta  + voltage_power_supply/2;
+	  		  break;
 
-  // Clarke transform
-  Ua = Ualpha;
-  Ub = -0.5 * Ualpha  + _SQRT3_2 * Ubeta;
-  Uc = -0.5 * Ualpha - _SQRT3_2 * Ubeta;
+	      case FOCModulationType::SpaceVectorPWM :
+	        // Nice video explaining the SpaceVectorModulation (SVPWM) algorithm
+	        // https://www.youtube.com/watch?v=QMSWUMEAejg
+
+	        // if negative voltages change inverse the phase
+	        // angle + 180degrees
+	        if(Uq < 0) angle_el += M_PI;
+	        Uq = fabs(Uq);
+
+	        // angle normalisation in between 0 and 2pi
+	        // only necessary if using _sin and _cos - approximation functions
+	        angle_el = normalizeAngle(angle_el + zero_electric_angle + _PI_2);
+
+	        // find the sector we are in currently
+	        int sector = floor(angle_el / _PI_3) + 1;
+	        // calculate the duty cycles
+	        float T1 = _SQRT3*arm_sin_f32(sector*_PI_3 - angle_el);
+	        float T2 = _SQRT3*arm_sin_f32(angle_el - (sector-1.0)*_PI_3);
+	        // two versions possible
+	        // centered around voltage_power_supply/2
+	        float T0 = 1 - T1 - T2;
+	        // centered around 0
+	        //T0 = 0;
+
+	        // calculate the duty cycles(times)
+	        float Ta,Tb,Tc;
+	        switch(sector){
+	          case 1:
+	            Ta = T1 + T2 + T0/2;
+	            Tb = T2 + T0/2;
+	            Tc = T0/2;
+	            break;
+	          case 2:
+	            Ta = T1 +  T0/2;
+	            Tb = T1 + T2 + T0/2;
+	            Tc = T0/2;
+	            break;
+	          case 3:
+	            Ta = T0/2;
+	            Tb = T1 + T2 + T0/2;
+	            Tc = T2 + T0/2;
+	            break;
+	          case 4:
+	            Ta = T0/2;
+	            Tb = T1+ T0/2;
+	            Tc = T1 + T2 + T0/2;
+	            break;
+	          case 5:
+	            Ta = T2 + T0/2;
+	            Tb = T0/2;
+	            Tc = T1 + T2 + T0/2;
+	            break;
+	          case 6:
+	            Ta = T1 + T2 + T0/2;
+	            Tb = T0/2;
+	            Tc = T1 + T0/2;
+	            break;
+	          default:
+	           // possible error state
+	            Ta = 0;
+	            Tb = 0;
+	            Tc = 0;
+	        }
+
+	        // calculate the phase voltages
+	        Ua = Ta*Uq;
+	        Ub = Tb*Uq;
+	        Uc = Tc*Uq;
+	        break;
+	  }
 
   // set phase voltages
   setPwm(1, Ua);
@@ -279,14 +357,13 @@ void BLDCMotor::setPhaseVoltage(float Uq, float angle_el) {
 // Here 1000 is a Timer Period
 
 void BLDCMotor::setPwm(int pinPwm, float U) {
-  // max value
-  float U_max = voltage_power_supply/2.0;
 
-  // sets the voltage [-U_max,U_max] to pwm [0,1000]
-   int U_pwm = 1000 * (U + U_max)/(2*U_max);
-  // it can be further optimised
-  // (example U_max = 6 > U_pwm = 127.5 + 21.25*U)
-  //int U_pwm = 127.5 * (U/U_max + 1);
+  // max value
+  float U_max = voltage_power_supply;
+
+  // sets the voltage [0,12V(U_max)] to pwm [0,1000]
+    // - U_max you can set in header file - default 12V
+   int U_pwm = 1000.0 * U / U_max;
 
   // limit the values between 0 and 255
   U_pwm = (U_pwm < 0) ? 0 : (U_pwm >= 1000) ? 1000 : U_pwm;

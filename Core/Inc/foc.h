@@ -58,9 +58,11 @@ extern "C" {
 #define _1_SQRT3 0.57735026919
 #define _SQRT3_2 0.86602540378
 #define _SQRT2 1.41421356237
+#define _SQRT3 1.73205080757
 #define _120_D2R 2.09439510239
 #define _PI 3.14159265359
 #define _PI_2 1.57079632679
+#define _PI_3 1.0471975512
 #define _2PI 6.28318530718
 #define _3PI_2 4.71238898038
 
@@ -69,6 +71,12 @@ enum ControlType{
   voltage,
   velocity,
   angle
+};
+
+// FOC Type
+enum FOCModulationType{
+  SinePWM,
+  SpaceVectorPWM
 };
 
 // PI controller strucutre
@@ -98,11 +106,14 @@ struct LPF_s{
 
 #ifdef __cplusplus
 
-/*
- * Declare to use Encoder class and link to it
+/**
+ * @brief Declare to use Encoder class and link to it
  */
 class AS5048A;
 
+/**
+ * @brief BLDC motor class
+ */
 class BLDCMotor {
 
 	public:
@@ -127,8 +138,9 @@ class BLDCMotor {
 	     // current voltage u_q set
 	     float voltage_q;
 
-	     // configuraion structures
+	     // configuration structures
 	     ControlType controller;
+	     FOCModulationType foc_modulation;
 	     PI_s PI_velocity;
 	     PI_s PI_velocity_index_search;
 	     P_s P_angle;
@@ -147,7 +159,9 @@ class BLDCMotor {
 
   		/**
   		 * @brief Constructor. If you do not use some pins leave it to 17.
-  		 * @param Number of poles integer
+  		 * @param - Number of poles integer
+  		 * @param - Motor PWM timer reference
+  		 * @param - Microseconds timer reference
   		 */
 	    BLDCMotor(int pp, TIM_HandleTypeDef* htim_motor, TIM_HandleTypeDef* htim_timer);
 
@@ -220,8 +234,6 @@ class BLDCMotor {
 
 
 };
-
-float ieee_float(uint32_t f);
 
 #endif
 

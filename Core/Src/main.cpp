@@ -162,6 +162,13 @@ BLDCMotor myBLDC(11, &htim3, &htim4); //motor pole number
 void StartMotorTask(void const * argument);
 
 /**
+ *	@brief Motor Calibration. Finding number of poles
+ *	@note Founded pole number is written into EEPROM for the UAVCAN param usage
+ */
+osThreadId MotorCalibrateTaskHandle;
+void StartMotorCalibrateTask(void const * argument);
+
+/**
  *	@brief EEPROM memory constructor
  *	@note Memory control thread declaration
  */
@@ -809,6 +816,95 @@ void StartINA226Task(void const * argument)
 }
 
 /**
+ *	@brief Motor Calibration. Finding number of poles
+ *	@note Founded pole number is written into EEPROM for the UAVCAN param usage
+ *	@note gives wrong value if crosses encoder 0 position. everything works while calculations between 0 and 2_PI
+ */
+void StartMotorCalibrateTask(void const * argument)
+{
+  /* USER CODE BEGIN 5 */
+
+	/**
+	 * @briefpower supply voltage
+	 * @note default 12V
+	 */
+	myBLDC.voltage_power_supply = 12;
+
+	/**
+	 * @brief Set FOC loop to be used
+	 * @param voltage, velocity, angle
+	 */
+	myBLDC.controller = ControlType::voltage;
+
+	/**
+	 * @brief Enable AS5048A Encoder drivers
+	 */
+	angleSensor.init();
+
+	/**
+	 * @brieflink the motor to the sensor
+	 * @param Encoder constructor name
+	 */
+	myBLDC.linkEncoder(&angleSensor);
+
+	/**
+	 * @brief Enable DRV8313 and FOC drivers
+	 */
+	myBLDC.init();
+
+	// pole pairs calculation routine
+	printf("Motor pole pair number estimation example\n");
+	printf("---------------------------------------------\n");
+
+	float pp_search_voltage = 4; // maximum power_supply_voltage/2
+	float pp_search_angle = 6*M_PI; // search electrical angle to turn
+
+	// move motor to the electrical angle 0
+	myBLDC.setPhaseVoltage(pp_search_voltage,0);
+	osDelay(1000);
+	// read the sensor angle
+	float angle_begin = angleSensor.getAngleInRad();
+	osDelay(50);
+
+	// move the motor slowly to the electrical angle pp_search_angle
+	float motor_angle = 0;
+	while(motor_angle <= pp_search_angle){
+		motor_angle += 0.01;
+		myBLDC.setPhaseVoltage(pp_search_voltage, motor_angle);
+	}
+	osDelay(1000);
+	// read the sensor value for 180
+	float angle_end = angleSensor.getAngleInRad();
+	osDelay(50);
+	// turn off the motor
+	myBLDC.setPhaseVoltage(0,0);
+	osDelay(1000);
+
+	// calculate the pole pair number
+	int pp = round((pp_search_angle)/(angle_end-angle_begin));
+
+	printf("Estimated pole pairs number is: %d\n", pp);
+	printf("Electrical angle / Encoder angle = Pole pairs %f/%f=%f\n", pp_search_angle*180/M_PI, (angle_end-angle_begin)*180/M_PI, (pp_search_angle)/(angle_end-angle_begin));
+
+	// a bit of debugging the result
+	if(pp <= 0 ){
+		printf("Pole pair number cannot be negative\n");
+		printf(" - Try changing the search_voltage value or motor/sensor configuration.\n");
+	    return;
+	}else if(pp > 30){
+		printf("Pole pair number very high, possible error.\n");
+	}
+
+	/* Infinite loop */
+	for(;;)
+	{
+
+		osDelay(1);
+		osThreadTerminate(MotorCalibrateTaskHandle);
+	}
+}
+
+/**
   * @brief Motor cCntrol Thread
   * @param None
   * @retval None
@@ -986,17 +1082,33 @@ void StartDefaultTask(void const * argument)
 	//osThreadDef(EEPROMTask, StartEEPROMTask, osPriorityNormal, 0, 256);
 	//EEPROMTaskHandle = osThreadCreate(osThread(EEPROMTask), NULL);
 
+
 	/**
 	 * @brief Start INA226 stask
 	 */
 	//osThreadDef(INA226Task, StartINA226Task, osPriorityNormal, 0, 256);
 	//INA226TaskHandle = osThreadCreate(osThread(INA226Task), NULL);
 
+
 	/**
-	 * @brief Start Motor, Encoder and FOC task
+	 * @brief if first time or calibration needed check
 	 */
-	osThreadDef(MotorTask, StartMotorTask, osPriorityNormal, 0, 1024);
-	defaultTaskHandle = osThreadCreate(osThread(MotorTask), NULL);
+	bool motor_calibrate = true;
+
+	if (motor_calibrate == true) {
+		/**
+		 * @brief Start Calibrate Motor, Encoder and FOC task
+		 */
+		osThreadDef(MotorCalibrateTask, StartMotorCalibrateTask, osPriorityNormal, 0, 1024);
+		MotorCalibrateTaskHandle = osThreadCreate(osThread(MotorCalibrateTask), NULL);
+		motor_calibrate = false;
+	} else {
+		/**
+		 * @brief Start Motor, Encoder and FOC task
+		 */
+		osThreadDef(MotorTask, StartMotorTask, osPriorityNormal, 0, 1024);
+		defaultTaskHandle = osThreadCreate(osThread(MotorTask), NULL);
+	}
 
 	/* Infinite loop */
 	for(;;)
