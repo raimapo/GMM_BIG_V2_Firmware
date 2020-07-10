@@ -32,21 +32,27 @@ extern "C" {
 
 #ifdef __cplusplus
 
+/**
+ * @brief for different EEPROM's page size differs
+ */
 #define MAX_WRITE_PAGE 8 //24AA02UID // 24AA025UID MAX_WRITE_PAGE 16
 
 class EEPROM {
 
+	/**
+	 * @breif definition of external I2C struct
+	 */
 	I2C_HandleTypeDef* _i2c;
 
 	public:
 
 	/**
-	 *	@brief Constructor
+	 *	@brief EEPROM Constructor
 	 */
 	EEPROM(I2C_HandleTypeDef *hi2c);
 
 	/**
-	 * @brief Initialiser
+	 * @brief EEPROM Initialiser
 	 * @note Sets up the I2C interface
 	 */
     void init(void);
@@ -63,18 +69,22 @@ class EEPROM {
 
 	private:
 
-    // Variables
+    /**
+     * @brief Variables
+     */
     uint8_t Address = 0x50;
     uint8_t position;
     uint32_t UID;
     uint8_t CompanyID;
     uint8_t EEPROMID;
 
+    /**
+     * @brief Private functions
+     */
     uint8_t readByte(uint8_t dataAddress);
     uint8_t readConsecutive(uint8_t * dataBuffer, uint8_t startAddress, uint8_t bytes);
     void writeByte(uint8_t dataAddress, uint8_t data);
     void writePage(uint8_t * dataBuffer, uint8_t startAddress, uint8_t bytes);
-
 
     uint8_t readCompanyID(void);
     uint8_t readEEPROMID(void);

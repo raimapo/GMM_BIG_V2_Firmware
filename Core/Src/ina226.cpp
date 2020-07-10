@@ -1,4 +1,4 @@
-#include "INA226.hpp"
+#include <ina226.h>
 
 
 INA226::INA226(I2C_HandleTypeDef* hi2c){

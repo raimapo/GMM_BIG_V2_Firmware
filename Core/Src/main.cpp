@@ -31,6 +31,9 @@
 #include <uavcan_stm32/uavcan_stm32.hpp>
 #include <uavcan/uavcan.hpp>
 
+#include <uavcan/protocol/param_server.hpp>
+
+#include <msg/MotorStatus.hpp>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -84,6 +87,12 @@ void StartDefaultTask(void const * argument);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+
+/**
+ * @brief Initialization of UAVCAN Parameters structure
+ * @note for first time flash board strore initial parameters in the memory and change them while you need them
+ */
+struct Parameters configuration = {false, 1, 2.0f, false, 7, 1, 0.2f, 20.0f, 1000.0f, 0.01f, 0.0f, 0, 5, false};
 
 /**
  * @brief NDEBUG for SWO IDE debuging
@@ -140,7 +149,9 @@ PUTCHAR_PROTOTYPE {
 #define CAN_THRAD_STACK_SIZE 1024
 uint32_t defaultTaskBuffer[ CAN_THRAD_STACK_SIZE ];
 osStaticThreadDef_t defaultTaskControlBlock;
-
+#define CAN_STACK_SIZE 1024
+uint32_t defaultTaskBuffer1[ CAN_STACK_SIZE ];
+osStaticThreadDef_t defaultTaskControlBlock1;
 /**
  * @brief AS5048A Magnetic encoder constructor
  * @param - SPI reference
@@ -170,19 +181,14 @@ void StartMotorCalibrateTask(void const * argument);
 
 /**
  *	@brief EEPROM memory constructor
- *	@note Memory control thread declaration
  */
 EEPROM myEEPROM(&hi2c1);
-osThreadId EEPROMTaskHandle;
-void StartEEPROMTask(void const * argument);
 
 /**
- *	@brief INA226 voltage, current and power meassurement constructor
- *	@note Meassurement thread declaration
+ *	@brief INA226 voltage, current and power measurement constructor
  */
 INA226 myINA226(&hi2c1);
-osThreadId INA226TaskHandle;
-void StartINA226Task(void const * argument);
+
 
 /**
  *	@brief UAVCAN pool inicialization with 8192 memory
@@ -195,11 +201,40 @@ uavcan::Node<NodePoolSize>& getNode() {
 }
 
 /**
+ * @brief Converting float to Uint8_t and back
+ */
+typedef union
+{
+ float number;
+ uint8_t bytes[4];
+} FLOATUNION_t;
+
+FLOATUNION_t num[6];
+
+/**
+ * @brief CAN Status SPIN thread
+ */
+void StartCANStatusTask(void const * argument);
+
+osSemaphoreId Param_completeID;
+osSemaphoreDef(Param_complete);
+
+bool Param_init(void)
+{
+    if ((Param_completeID = osSemaphoreCreate(osSemaphore(Param_complete), 1)) == NULL)
+    {
+        return false;
+    }
+    return true;
+}
+
+/**
  *	@brief UART receiver callback for testing values acceptance
  *	@note At final version will be removed
  *	@note Accepts as HEX and only integer values. HEX 30 -> 0, HEX 31 -> 1, HEX 2F -> -1 and etc.
  *
  */
+/*
 uint8_t str[1];
 float target_voltage = 4;
 uint8_t update_target = 0;
@@ -210,6 +245,7 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
 		update_target = 1;
 	}
 }
+*/
 
 /* USER CODE END 0 */
 
@@ -310,6 +346,7 @@ int main(void)
   //osThreadDef(defaultTask, StartDefaultTask, osPriorityNormal, 0, 128);
   osThreadStaticDef(defaultTask, StartDefaultTask, osPriorityNormal, 0, CAN_THRAD_STACK_SIZE, defaultTaskBuffer, &defaultTaskControlBlock);
   defaultTaskHandle = osThreadCreate(osThread(defaultTask), NULL);
+
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
@@ -708,112 +745,6 @@ static void MX_GPIO_Init(void)
 
 /* USER CODE BEGIN 4 */
 
-/**
-  * @brief EEPROM first time read Thread
-  * @param None
-  * @retval None
-  * @note later this thread maybe dissaper
-  */
-
-void StartEEPROMTask(void const * argument)
-{
-  /* USER CODE BEGIN 5 */
-
-	uint8_t pos[20] = {0};
-	uint8_t i;
-
-	/**
-	 * @brief Init I2C and EEPROM drivers
-	 * @param None
-	 * @retval None
-	 */
-	myEEPROM.init();
-
-  /* Infinite loop */
-  for(;;)
-  {
-	  //for (i=0; i<20; ++i)
-		  //pos[i] = 40 - i;
-	  //myEEPROM.writeData(pos, 0x04, 20);
-	  //osDelay(100);
-
-	  /**
-	   * @brief Read data from EEPROM
-	   * @param pos   - array or variable where readed data will be pushed
-	   * @param start - start address in the momory in HEX format
-	   * @param size  - Size of data to read sequentally
-	   * @retval pos  - Array or variable filled with readed data
-	   */
-	  myEEPROM.readData(pos, 0x04, 20);
-	  if (DEBUG_EEPROM == 1)
-		  for (i=0; i<20; ++i)
-			  printf("%d\n", pos[i]);
-
-	  osThreadTerminate(EEPROMTaskHandle);
-  }
-}
-
-/**
-  * @brief INA226 voltage, current and power meassurement Thread
-  * @param None
-  * @retval None
-  */
-void StartINA226Task(void const * argument)
-{
-  /* USER CODE BEGIN 5 */
-
-	/**
-	 * @brief Init I2C and INA226 drivers
-	 * @param None
-	 * @retval None
-	 * @note Default INA226 I2C address is 0x40
-	 */
-	myINA226.init();
-
-	/**
-	 * @brief Configure INA226
-	 * @param avaraging - fixed values to use from 1 to 1024
-	 * @param Bus_Conversion_Time - fixed values to use from 140us to 8244us
-	 * @param Shunt_Conversion_Time - fixed values to use from 140us to 8244us
-	 * @param Mode - fixed values check library enumerators
-	 * @retval None
-	 */
-	myINA226.configure(INA226_AVERAGES_1, INA226_BUS_CONV_TIME_1100US, INA226_SHUNT_CONV_TIME_1100US, INA226_MODE_SHUNT_BUS_CONT);
-
-	/**
-	 * @brief Calibrate INA226. Rshunt = 0.01 ohm, Max excepted current = 4A
-	 * @param Resistor - Shunt resistor value anssembled on the PCB. From Electrical circuit.
-	 * @param MAX_Current - MAX current which could flow through Shunt resistor. From Electrical circuit.
-	 * @retval None
-	 */
-	myINA226.calibrate(0.047, 3.5);
-
-	/*
-	 * @brief print configuration
-	 */
-	if (DEBUG_INA226 == 1)
-		myINA226.checkConfig();
-
-	/* Infinite loop */
-	for(;;)
-	{
-		/**
-		 * @brief Some debuging result if they are enabled
-		 */
-		if (DEBUG_INA226 == 1) {
-		  printf("Bus voltage: %f V\n", myINA226.readBusVoltage());
-		  printf("Bus power: %f W\n", myINA226.readBusPower());
-		  printf("Shunt voltage: %f V\n",  myINA226.readShuntVoltage());
-		  printf("Shunt current: %f A\n\n", myINA226.readShuntCurrent());
-		  osDelay(500);
-		}
-		else
-		{
-		  osDelay(1);
-		}
-		//osThreadTerminate(EEPROMTaskHandle);
-	}
-}
 
 /**
  *	@brief Motor Calibration. Finding number of poles
@@ -825,7 +756,7 @@ void StartMotorCalibrateTask(void const * argument)
   /* USER CODE BEGIN 5 */
 
 	/**
-	 * @briefpower supply voltage
+	 * @brief power supply voltage
 	 * @note default 12V
 	 */
 	myBLDC.voltage_power_supply = 12;
@@ -835,6 +766,11 @@ void StartMotorCalibrateTask(void const * argument)
 	 * @param voltage, velocity, angle
 	 */
 	myBLDC.controller = ControlType::voltage;
+	/**
+	 * @brief Set FOC Mathematical algoritm
+	 * @note SinePWM or SpaceVectorPWM
+	 */
+	myBLDC.foc_modulation = FOCModulationType::SinePWM;
 
 	/**
 	 * @brief Enable AS5048A Encoder drivers
@@ -853,15 +789,18 @@ void StartMotorCalibrateTask(void const * argument)
 	myBLDC.init();
 
 	// pole pairs calculation routine
-	printf("Motor pole pair number estimation example\n");
-	printf("---------------------------------------------\n");
+	//if (DEBUG_MOTOR == 1) printf("Motor pole pair number estimation example\n");
+	//if (DEBUG_MOTOR == 1) printf("---------------------------------------------\n");
 
 	float pp_search_voltage = 4; // maximum power_supply_voltage/2
+
+	LOOP:	//not so nice approach. Should be changed to while loop but I am lazy to initialize a pp variable to check condition
 	float pp_search_angle = 6*M_PI; // search electrical angle to turn
 
 	// move motor to the electrical angle 0
 	myBLDC.setPhaseVoltage(pp_search_voltage,0);
 	osDelay(1000);
+
 	// read the sensor angle
 	float angle_begin = angleSensor.getAngleInRad();
 	osDelay(50);
@@ -881,23 +820,24 @@ void StartMotorCalibrateTask(void const * argument)
 	osDelay(1000);
 
 	// calculate the pole pair number
-	int pp = round((pp_search_angle)/(angle_end-angle_begin));
+	uint8_t pp = round((pp_search_angle)/(angle_end-angle_begin));
 
-	printf("Estimated pole pairs number is: %d\n", pp);
-	printf("Electrical angle / Encoder angle = Pole pairs %f/%f=%f\n", pp_search_angle*180/M_PI, (angle_end-angle_begin)*180/M_PI, (pp_search_angle)/(angle_end-angle_begin));
+
+	//if (DEBUG_MOTOR == 1) printf("Estimated pole pairs number is: %d\n", pp);
+	//if (DEBUG_MOTOR == 1) printf("Electrical angle / Encoder angle = Pole pairs %f/%f=%f\n", pp_search_angle*180/M_PI, (angle_end-angle_begin)*180/M_PI, (pp_search_angle)/(angle_end-angle_begin));
 
 	// a bit of debugging the result
 	if(pp <= 0 ){
-		printf("Pole pair number cannot be negative\n");
-		printf(" - Try changing the search_voltage value or motor/sensor configuration.\n");
-	    return;
+		//if (DEBUG_MOTOR == 1) printf("Pole pair number cannot be negative\n");
+		//if (DEBUG_MOTOR == 1) printf(" - Try changing the search_voltage value or motor/sensor configuration.\n");
+		goto LOOP; // try second time and it will work :)
 	}else if(pp > 30){
-		printf("Pole pair number very high, possible error.\n");
+		//if (DEBUG_MOTOR == 1) printf("Pole pair number very high, possible error.\n");
+		goto LOOP; // try second time and it will work :)
 	}
 
 	/* Infinite loop */
-	for(;;)
-	{
+	for(;;) {
 
 		osDelay(1);
 		osThreadTerminate(MotorCalibrateTaskHandle);
@@ -920,27 +860,6 @@ void StartMotorTask(void const * argument)
 	myBLDC.voltage_power_supply = 12;
 
 	/**
-	 * @brief Set FOC loop to be used
-	 * @param voltage, velocity, angle
-	 */
-	myBLDC.controller = ControlType::velocity;
-
-	/**
-	 * @brief PI controller configuration based on the control type
-	 * @note velocity PI controller parameters
-	 */
-	myBLDC.PI_velocity.P = 0.2;
-	myBLDC.PI_velocity.I = 20;
-	myBLDC.PI_velocity.voltage_limit = 6; //default voltage_power_supply/2
-	myBLDC.PI_velocity.voltage_ramp = 1000;// jerk control using voltage voltage ramp
-
-	/**
-	 * @brief velocity low pass filtering
-	 * @note the lower the less filtered
-	 */
-	myBLDC.LPF_velocity.Tf = 0.01;
-
-	/**
 	 * @brief Enable AS5048A Encoder drivers
 	 */
 	angleSensor.init();
@@ -952,6 +871,12 @@ void StartMotorTask(void const * argument)
 	myBLDC.linkEncoder(&angleSensor);
 
 	/**
+	 * @brief Set FOC Mathematical algoritm
+	 * @note SinePWM or SpaceVectorPWM
+	 */
+	myBLDC.foc_modulation = FOCModulationType::SinePWM;
+
+	/**
 	 * @brief Enable DRV8313 and FOC drivers
 	 */
 	myBLDC.init();
@@ -961,9 +886,9 @@ void StartMotorTask(void const * argument)
 	 */
 	myBLDC.initFOC();
 
-	if (DEBUG_MOTOR == 1) printf("Motor ready.\n");
-	osDelay(10);
-	if (DEBUG_MOTOR == 1) printf("Set the target voltage using serial terminal: \n");
+	//if (DEBUG_MOTOR == 1) printf("Motor ready.\n");
+	//osDelay(10);
+	//if (DEBUG_MOTOR == 1) printf("Set the target voltage using serial terminal: \n");
 	osDelay(1000);
 
 	/**
@@ -975,20 +900,55 @@ void StartMotorTask(void const * argument)
 	 * @brief Start UART callback for first time to accept motor control parameters
 	 * @note later Such receiver will be removed
 	 */
-	HAL_UART_Receive_DMA(&huart1, (uint8_t *)str, 1);
+	//HAL_UART_Receive_DMA(&huart1, (uint8_t *)str, 1);
+
+
+	/**
+	 * @brief PI controller configuration based on the control type
+	 * @note velocity PI controller parameters
+	 */
+	myBLDC.PI_velocity.P = 0.2f;
+	myBLDC.PI_velocity.I = 20.0f;
+	myBLDC.PI_velocity.voltage_limit = 6; //default voltage_power_supply/2
+	myBLDC.PI_velocity.voltage_ramp = 1000.0f;// jerk control using voltage voltage ramp
+
+	/**
+	 * @brief velocity low pass filtering
+	 * @note the lower the less filtered
+	 */
+	myBLDC.LPF_velocity.Tf = 0.01f;
+
+	/**
+	 * @brief Primary motor position
+	 * @note 0.017 rad is 1 degree. It is some error range.
+	 */
+	//while(angleSensor.getAngleInRad() > configuration.Angle+0.017 || angleSensor.getAngleInRad() < configuration.Angle-0.017)
+	//{
+
+		//myBLDC.controller = ControlType::angle;
+		//myBLDC.loopFOC();
+		//myBLDC.move(configuration.Angle);
+	//}
 
 	/* Infinite loop */
-	for(;;)
-	{
+	for(;;) {
+
+		/**
+		 * @brief Set FOC loop to be used
+		 * @param voltage, velocity, angle
+		 */
+
+		myBLDC.controller = ControlType::velocity;
+
 		/**
 		 * @brief print AS5048A Encoder data
 		 */
-		#if (DEBUG_ENCODER == 1)
-			float rad = angleSensor.getAngleInRad();
-			float vel = angleSensor.getVelocity();
-			printf("Current Angle: %f rad\n", rad);
-			printf("Velocity: %f rad/s\n", vel);
-		#endif
+		//#if (DEBUG_ENCODER == 1)
+			//float rad = angleSensor.getAngleInRad();
+			//float vel = angleSensor.getVelocity();
+			//printf("Current Angle: %f rad\n", rad);
+			//printf("Velocity: %f rad/s\n", vel);
+		//#endif
 
 		/**
 		 * @brief iterative state calculation calculating angle
@@ -1005,15 +965,36 @@ void StartMotorTask(void const * argument)
 		 * @brief it can go as low as ~50Hz
 		 * @brief the best would be to be in ~10kHz range
 		 */
+		/*
 		if (update_target)
 		{
 		  update_target = 0;
 		  if (DEBUG_MOTOR == 1) printf ("Voltage: %f\n", target_voltage);
 		}
+		 */
 
-		myBLDC.move(target_voltage);
+	    myBLDC.move(2);
+
 	}
 }
+
+void StartCANStatusTask(void const * argument){
+
+	for(;;) {
+		/*
+		 * @brief Health control of the UAVCAN
+		 * @param Integer value from timeout in milisoconds
+		 */
+		const int res = getNode().spin(uavcan::MonotonicDuration::fromMSec(500));
+		if (res < 0) {
+			//if (DEBUG_MAIN == 1) printf("UAVCAN spin fail\r\n");
+			Error_Handler();
+		}
+	}
+}
+
+
+
 /* USER CODE END 4 */
 
 /* USER CODE BEGIN Header_StartDefaultTask */
@@ -1032,6 +1013,56 @@ void StartDefaultTask(void const * argument)
 	 */
 	uint32_t value = 1000000;
 
+
+	SPI_init();
+
+	/*
+	 * @brief Enable I2C resource control
+	 */
+	I2C_init();
+
+	/*
+	 * @brief Enable EEPROM
+	 */
+	myEEPROM.init();
+
+	/*
+	 * @brief Enable Parameters resource control
+	 */
+	Param_init();
+
+	/**
+	 * @brief Init I2C and INA226 drivers
+	 * @param None
+	 * @retval None
+	 * @note Default INA226 I2C address is 0x40
+	 */
+	//myINA226.init();
+
+	/**
+	 * @brief Configure INA226
+	 * @param avaraging - fixed values to use from 1 to 1024
+	 * @param Bus_Conversion_Time - fixed values to use from 140us to 8244us
+	 * @param Shunt_Conversion_Time - fixed values to use from 140us to 8244us
+	 * @param Mode - fixed values check library enumerators
+	 * @retval None
+	 */
+	//myINA226.configure(INA226_AVERAGES_1, INA226_BUS_CONV_TIME_1100US, INA226_SHUNT_CONV_TIME_1100US, INA226_MODE_SHUNT_BUS_CONT);
+
+	/**
+	 * @brief Calibrate INA226. Rshunt = 0.01 ohm, Max excepted current = 4A
+	 * @param Resistor - Shunt resistor value anssembled on the PCB. From Electrical circuit.
+	 * @param MAX_Current - MAX current which could flow through Shunt resistor. From Electrical circuit.
+	 * @retval None
+	 */
+	//myINA226.calibrate(0.047, 3.5);
+
+
+	/*
+	 * @brief print configuration
+	 */
+	//myINA226.checkConfig();
+
 	/**
 	 * @brief CAN parameters initilisation for UAVCAN
 	 * @param CAN speed value
@@ -1040,18 +1071,83 @@ void StartDefaultTask(void const * argument)
 	can.init(value);
 
 	/**
+	 * @brief Read data from EEPROM
+	 * @param pos   - array or variable where readed data will be pushed
+	 * @param start - start address in the momory in HEX format
+	 * @param size  - Size of data to read sequentally
+	 */
+
+	uint8_t pos[31]={0};
+	myEEPROM.readData(pos, 0x04, 31);
+    if (osSemaphoreWait(Param_completeID, 1000) == osOK)
+    {
+		configuration.PowerOn = pos[0];
+		configuration.ControlType = pos[1];
+		num[0].bytes[0] = pos[2];
+		num[0].bytes[1] = pos[3];
+		num[0].bytes[2] = pos[4];
+		num[0].bytes[3] = pos[5];
+		configuration.ControlValue = num[0].number;
+		configuration.Calibrate = pos[6];
+		configuration.PoleNumber = pos[7];
+		configuration.FOCModulation = pos[8];
+		num[1].bytes[0] = pos[9];
+		num[1].bytes[1] = pos[10];
+		num[1].bytes[2] = pos[11];
+		num[1].bytes[3] = pos[12];
+		configuration.VEL_P = num[1].number ;
+		num[2].bytes[0] = pos[13];
+		num[2].bytes[1] = pos[14];
+		num[2].bytes[2] = pos[15];
+		num[2].bytes[3] = pos[16];
+		configuration.VEL_I = num[2].number;
+		num[3].bytes[0] = pos[17];
+		num[3].bytes[1] = pos[18];
+		num[3].bytes[2] = pos[19];
+		num[3].bytes[3] = pos[20] ;
+		configuration.VEL_U_RAMP = num[3].number;
+		num[4].bytes[0] = pos[21];
+		num[4].bytes[1] = pos[22];
+		num[4].bytes[2] = pos[23];
+		num[4].bytes[3] = pos[24];
+		configuration.VEL_FILTER_Tf = num[4].number;
+		num[5].bytes[0] = pos[25];
+		num[5].bytes[1] = pos[26];
+		num[5].bytes[2] = pos[27];
+		num[5].bytes[3] = pos[28];
+		configuration.Angle = num[5].number;
+		configuration.Orientation = pos[29];
+		configuration.NodeID = pos[30];
+		osSemaphoreRelease(Param_completeID);
+    }
+	/**
 	 * @brief Set Board name
 	 * @param Name as Char symbols
 	 * @retval None
 	 */
 	getNode().setName("GMM_BIG_V2");
 
+	uavcan::protocol::HardwareVersion hw_ver;
+    hw_ver.major = 2;
+    hw_ver.minor = 0;
+    getNode().setHardwareVersion(hw_ver);
+    uavcan::protocol::SoftwareVersion sw_ver;
+    sw_ver.major = 2;
+    sw_ver.minor = 0;
+    getNode().setSoftwareVersion(sw_ver);
+
 	/**
 	 * @brief Set Board ID number
 	 * @param Integer value from 0 up to 255
 	 * @retval None
 	 */
-	getNode().setNodeID(5);
+
+	//if (configuration.NodeID < 0 || configuration.NodeID > 255) {
+		getNode().setNodeID(5);
+	//} else {
+			//getNode().setNodeID(configuration.NodeID);
+	//}
+
 
 	/**
 	 * @brief Start UAVCAN protocol
@@ -1059,9 +1155,245 @@ void StartDefaultTask(void const * argument)
 	 * @note stops board if fails
 	 */
 	if (getNode().start() < 0) {
-		if (DEBUG_MAIN == 1) printf("UAVCAN start fail\r\n");
+		//if (DEBUG_MAIN == 1) printf("UAVCAN start fail\r\n");
 		while (1);
 	}
+
+
+    /**
+     * Now, we need to define some glue logic between the server (below) and our configuration storage (above).
+     * This is done via the interface uavcan::IParamManager.
+     */
+    class : public uavcan::IParamManager {
+
+    	void getParamNameByIndex(Index index, Name& out_name) const override {
+    		if (index == 0) { out_name = "Power On/Off"; }
+            if (index == 1) { out_name = "Control Type"; }
+            if (index == 2) { out_name = "Control Value"; }
+            if (index == 3) { out_name = "Calibrate On/Off"; }
+       		if (index == 4) { out_name = "Pole Number"; }
+       		if (index == 5) { out_name = "FOC Modulation"; }
+            if (index == 6) { out_name = "Velocity PID P"; }
+            if (index == 7) { out_name = "Velocity PID I"; }
+           	if (index == 8) { out_name = "Velocity U Ramp"; }
+            if (index == 9) { out_name = "Velocity Filter Tf"; }
+            if (index == 10) { out_name = "Primary angle"; }
+            if (index == 11) { out_name = "Motor Pitch/Roll/Yaw"; }
+            if (index == 12) { out_name = "Node ID"; }
+    	}
+
+    	void assignParamValue(const Name& name, const Value& value) override {
+    		if (name == "Power On/Off") {
+    			/*
+    			 * Logic - if Parameter "foo" is an integer, so we accept only integer values here.
+    			 */
+    			if (value.is(uavcan::protocol::param::Value::Tag::boolean_value))
+    				configuration.PowerOn = *value.as<uavcan::protocol::param::Value::Tag::boolean_value>();
+        	} else if (name == "Control Type") {
+        		if (value.is(uavcan::protocol::param::Value::Tag::integer_value))
+        			configuration.ControlType = *value.as<uavcan::protocol::param::Value::Tag::integer_value>();
+        	} else if (name == "Control Value") {
+        		if (value.is(uavcan::protocol::param::Value::Tag::real_value))
+        			configuration.ControlValue = *value.as<uavcan::protocol::param::Value::Tag::real_value>();
+        	} else if (name == "Calibrate On/Off") {
+        		if (value.is(uavcan::protocol::param::Value::Tag::boolean_value))
+        			configuration.Calibrate = *value.as<uavcan::protocol::param::Value::Tag::boolean_value>();
+        	} else if (name == "Pole Number") {
+        		if (value.is(uavcan::protocol::param::Value::Tag::integer_value))
+        			configuration.PoleNumber = *value.as<uavcan::protocol::param::Value::Tag::integer_value>();
+        	} else if (name == "FOC Modulation") {
+        		if (value.is(uavcan::protocol::param::Value::Tag::integer_value))
+        			configuration.FOCModulation = *value.as<uavcan::protocol::param::Value::Tag::integer_value>();
+        	} else if (name == "Velocity PID P") {
+        		if (value.is(uavcan::protocol::param::Value::Tag::real_value))
+        			configuration.VEL_P = *value.as<uavcan::protocol::param::Value::Tag::real_value>();
+        	} else if (name == "Velocity PID I") {
+                if (value.is(uavcan::protocol::param::Value::Tag::real_value))
+                	configuration.VEL_I = *value.as<uavcan::protocol::param::Value::Tag::real_value>();
+        	} else if (name == "Velocity U Ramp") {
+                if (value.is(uavcan::protocol::param::Value::Tag::real_value))
+                	configuration.VEL_U_RAMP = *value.as<uavcan::protocol::param::Value::Tag::real_value>();
+        	} else if (name == "Velocity Filter Tf") {
+                if (value.is(uavcan::protocol::param::Value::Tag::real_value))
+                	configuration.VEL_FILTER_Tf = *value.as<uavcan::protocol::param::Value::Tag::real_value>();
+        	} else if (name == "Primary angle") {
+                if (value.is(uavcan::protocol::param::Value::Tag::real_value))
+                	configuration.Angle = *value.as<uavcan::protocol::param::Value::Tag::real_value>();
+    		} else if (name == "Motor Pitch/Roll/Yaw") {
+    			if (value.is(uavcan::protocol::param::Value::Tag::integer_value))
+    				configuration.Orientation = *value.as<uavcan::protocol::param::Value::Tag::integer_value>();
+    		} else if (name == "Node ID") {
+    			if (value.is(uavcan::protocol::param::Value::Tag::integer_value))
+    				configuration.NodeID = *value.as<uavcan::protocol::param::Value::Tag::integer_value>();
+        	} else
+        		if (DEBUG_MAIN == 1) printf("Can't assign parameter. Check if type is correct\r\n");
+        }
+
+        void readParamValue(const Name& name, Value& out_value) const override {
+        	if (name == "Power On/Off")
+        		out_value.to<uavcan::protocol::param::Value::Tag::boolean_value>() = configuration.PowerOn;
+        	else if (name == "Control Type")
+        		out_value.to<uavcan::protocol::param::Value::Tag::integer_value>() = configuration.ControlType;
+        	else if (name == "Control Value")
+        		out_value.to<uavcan::protocol::param::Value::Tag::real_value>() = configuration.ControlValue;
+        	else if (name == "Calibrate On/Off")
+            	out_value.to<uavcan::protocol::param::Value::Tag::boolean_value>() = configuration.Calibrate;
+          	else if (name == "Pole Number")
+          		out_value.to<uavcan::protocol::param::Value::Tag::integer_value>() = configuration.PoleNumber;
+          	else if (name == "FOC Modulation")
+          		out_value.to<uavcan::protocol::param::Value::Tag::integer_value>() = configuration.FOCModulation;
+          	else if (name == "Velocity PID P")
+          		out_value.to<uavcan::protocol::param::Value::Tag::real_value>() = configuration.VEL_P;
+          	else if (name == "Velocity PID I")
+          		out_value.to<uavcan::protocol::param::Value::Tag::real_value>() = configuration.VEL_I;
+          	else if (name == "Velocity U Ramp")
+          		out_value.to<uavcan::protocol::param::Value::Tag::real_value>() = configuration.VEL_U_RAMP;
+          	else if (name == "Velocity Filter Tf")
+          		out_value.to<uavcan::protocol::param::Value::Tag::real_value>() = configuration.VEL_FILTER_Tf;
+          	else if (name == "Primary angle")
+          		out_value.to<uavcan::protocol::param::Value::Tag::real_value>() = configuration.Angle;
+          	else if (name == "Motor Pitch/Roll/Yaw")
+          		out_value.to<uavcan::protocol::param::Value::Tag::integer_value>() = configuration.Orientation;
+          	else if (name == "Node ID")
+          		out_value.to<uavcan::protocol::param::Value::Tag::integer_value>() = configuration.NodeID;
+        	else
+        		if (DEBUG_MAIN == 1) printf("Can't read parameter. Check if type is correct\r\n");
+        }
+
+        int saveAllParams() override {
+        	if (DEBUG_MAIN == 1) printf("Save - this implementation does not require any action\r\n");
+
+			uint8_t pos[31]={0};
+ 			pos[0] = configuration.PowerOn;
+			pos[1] = configuration.ControlType;
+			num[0].number = configuration.ControlValue;
+			pos[2] =  num[0].bytes[0];
+			pos[3] =  num[0].bytes[1];
+			pos[4] =  num[0].bytes[2];
+			pos[5] =  num[0].bytes[3];
+			pos[6] = configuration.Calibrate;
+			pos[7] = configuration.PoleNumber;
+			pos[8] = configuration.FOCModulation;
+			num[1].number = configuration.VEL_P;
+			pos[9] =  num[1].bytes[0];
+			pos[10] =  num[1].bytes[1];
+			pos[11] =  num[1].bytes[2];
+			pos[12] =  num[1].bytes[3];
+			num[2].number = configuration.VEL_I;
+			pos[13] =  num[2].bytes[0];
+			pos[14] =  num[2].bytes[1];
+			pos[15] =  num[2].bytes[2];
+			pos[16] =  num[2].bytes[3];
+			num[3].number = configuration.VEL_U_RAMP;
+			pos[17] =  num[3].bytes[0];
+			pos[18] =  num[3].bytes[1];
+			pos[19] =  num[3].bytes[2];
+			pos[20] =  num[3].bytes[3];
+			num[4].number = configuration.VEL_FILTER_Tf;
+			pos[21] =  num[4].bytes[0];
+			pos[22] =  num[4].bytes[1];
+			pos[23] =  num[4].bytes[2];
+			pos[24] =  num[4].bytes[3];
+			num[5].number = configuration.Angle;
+			pos[25] =  num[5].bytes[0];
+			pos[26] =  num[5].bytes[1];
+			pos[27] =  num[5].bytes[2];
+			pos[28] =  num[5].bytes[3];
+			pos[29] = configuration.Orientation;
+			pos[30] = configuration.NodeID;
+
+      	  /**
+      	   * @brief Write data from EEPROM
+      	   * @param pos   - array or variable where readed data will be pushed
+      	   * @param start - start address in the momory in HEX format
+      	   * @param size  - Size of data to read sequentally
+      	   */
+        	myEEPROM.writeData(pos, 0x04, 31);
+        	osDelay(100);
+        	return 0;     // Zero means that everything is fine.
+        }
+
+        int eraseAllParams() override {
+        	//if (DEBUG_MAIN == 1) printf("Erase - all params reset to default values\r\n");
+        	configuration = Parameters();
+        	return 0;
+        }
+
+        /**
+         * Note that this method is optional. It can be left unimplemented.
+         */
+        void readParamDefaultMaxMin(const Name& name, Value& out_def, NumericValue& out_max, NumericValue& out_min) const override {
+        	if (name == "Control Type") {
+        		out_def.to<uavcan::protocol::param::Value::Tag::integer_value>() = Parameters().ControlType;
+        		out_max.to<uavcan::protocol::param::NumericValue::Tag::integer_value>() = 2;
+        		out_min.to<uavcan::protocol::param::NumericValue::Tag::integer_value>() = 0;
+        	} else if (name == "Pole Number") {
+        		out_def.to<uavcan::protocol::param::Value::Tag::integer_value>() = Parameters().PoleNumber;
+        		out_max.to<uavcan::protocol::param::NumericValue::Tag::integer_value>() = 30;
+        		out_min.to<uavcan::protocol::param::NumericValue::Tag::integer_value>() = 0;
+        	} else if (name == "FOC Modulation") {
+        		out_def.to<uavcan::protocol::param::Value::Tag::integer_value>() = Parameters().FOCModulation;
+        		out_max.to<uavcan::protocol::param::NumericValue::Tag::integer_value>() = 1;
+        		out_min.to<uavcan::protocol::param::NumericValue::Tag::integer_value>() = 0;
+        	} else if (name == "Primary angle") {
+        		out_def.to<uavcan::protocol::param::Value::Tag::real_value>() = Parameters().Angle;
+        		out_max.to<uavcan::protocol::param::NumericValue::Tag::real_value>() = 6.28f;
+        		out_min.to<uavcan::protocol::param::NumericValue::Tag::real_value>() = -6.28f;
+        	} else if (name == "Motor Pitch/Roll/Yaw") {
+        		out_def.to<uavcan::protocol::param::Value::Tag::integer_value>() = Parameters().Orientation;
+        		out_max.to<uavcan::protocol::param::NumericValue::Tag::integer_value>() = 2;
+        		out_min.to<uavcan::protocol::param::NumericValue::Tag::integer_value>() = 0;
+        	} else if (name == "Node ID") {
+        		out_def.to<uavcan::protocol::param::Value::Tag::integer_value>() = Parameters().NodeID;
+        		out_max.to<uavcan::protocol::param::NumericValue::Tag::integer_value>() = 255;
+        		out_min.to<uavcan::protocol::param::NumericValue::Tag::integer_value>() = 0;
+        	//} else if (name == "text") {
+        		//out_def.to<uavcan::protocol::param::Value::Tag::string_value>() = Parametrai().text.c_str();
+        		//DEBUG_Printf("Limits for 'text' are not defined\r\n");
+        	} else {
+        		//if (DEBUG_MAIN == 1) printf("Can't read the limits for parameter\r\n");
+        	}
+        }
+    } param_manager;
+
+    /**
+     * Initializing the configuration server.
+     * A pointer to the glue logic object is passed to the method start().
+     */
+    uavcan::ParamServer server(getNode());
+
+    const int server_start_res = server.start(&param_manager);
+    if (server_start_res < 0) {
+    	//if (DEBUG_MAIN == 1) printf("Failed to start ParamServer\r\n");
+    }
+
+    /*
+     * Many embedded applications require a restart before the new configuration settings can
+     * be applied, so it is highly recommended to also support the remote restart service.
+     */
+    class : public uavcan::IRestartRequestHandler {
+    	bool handleRestartRequest(uavcan::NodeID request_source) override {
+    		//if (DEBUG_MAIN == 1) printf("Got a remote restart request from %d\r\n", int(request_source.get()));
+            /**
+             * We won't really restart, so return 'false'.
+             * Returning 'true' would mean that we're going to restart for real.
+             * Note that it is recognized that some nodes may not be able to respond to the
+             * restart request (e.g. if they restart immediately from the service callback).
+             */
+    		HAL_NVIC_SystemReset(); //Ši eilutė leido realiai restartuoti
+    		return true;
+        }
+    } restart_request_handler;
+
+    /**
+     * Installing the restart request handler.
+     */
+    getNode().setRestartRequestHandler(&restart_request_handler); // Done.
+
+	//Motor status publisher
+    //uavcan::Publisher<msg::MotorStatus> mot_status(getNode());
+	//mot_status.init();
+	//msg::MotorStatus mot_status_msg;
 
 	/**
 	 * @brief Start UAVCAN normal operation
@@ -1071,57 +1403,47 @@ void StartDefaultTask(void const * argument)
 	getNode().setModeOperational();
 
 
-	/*
-	 * @brief Enable I2C resource control
-	 */
-	I2C_init();
-
-	/**
-	 * @brief Start EEPROM stask
-	 */
-	//osThreadDef(EEPROMTask, StartEEPROMTask, osPriorityNormal, 0, 256);
-	//EEPROMTaskHandle = osThreadCreate(osThread(EEPROMTask), NULL);
-
-
-	/**
-	 * @brief Start INA226 stask
-	 */
-	//osThreadDef(INA226Task, StartINA226Task, osPriorityNormal, 0, 256);
-	//INA226TaskHandle = osThreadCreate(osThread(INA226Task), NULL);
-
+	//osThreadStaticDef(CANTask, StartCANStatusTask, osPriorityNormal, 0, CAN_STACK_SIZE, defaultTaskBuffer1, &defaultTaskControlBlock1);
+	//defaultTaskHandle = osThreadCreate(osThread(CANTask), NULL);
 
 	/**
 	 * @brief if first time or calibration needed check
 	 */
-	bool motor_calibrate = true;
-
-	if (motor_calibrate == true) {
-		/**
-		 * @brief Start Calibrate Motor, Encoder and FOC task
-		 */
-		osThreadDef(MotorCalibrateTask, StartMotorCalibrateTask, osPriorityNormal, 0, 1024);
+	bool Calib = false;
+	if (Calib == true) {
+		osThreadDef(MotorCalibrateTask, StartMotorCalibrateTask, osPriorityNormal, 0, 128);
 		MotorCalibrateTaskHandle = osThreadCreate(osThread(MotorCalibrateTask), NULL);
-		motor_calibrate = false;
+		Calib = false;
 	} else {
 		/**
 		 * @brief Start Motor, Encoder and FOC task
 		 */
-		osThreadDef(MotorTask, StartMotorTask, osPriorityNormal, 0, 1024);
+		osThreadDef(MotorTask, StartMotorTask, osPriorityNormal, 0, 128);
 		defaultTaskHandle = osThreadCreate(osThread(MotorTask), NULL);
 	}
+
+
 
 	/* Infinite loop */
 	for(;;)
 	{
-		/*
-		 * @brief Health control of the UAVCAN
-		 * @param Integer value from timeout in milisoconds
-		 */
+
+		//mot_status_msg.axis_id = configuration.Orientation; //configuration.Orientation;
+		//mot_status_msg.motor_pos_rad_raw = 0; //fmod(angleSensor.getAngleInRad(), 6.28f);
+		//mot_status_msg.motor_pos_rad = 0;
+		//mot_status_msg.bus_voltage =  myINA226.readBusVoltage();
+		//mot_status_msg.bus_power = myINA226.readBusPower();
+		//mot_status_msg.shunt_voltage = myINA226.readShuntVoltage();
+		//mot_status_msg.shunt_current = myINA226.readShuntCurrent();
+	    //mot_status.broadcast(mot_status_msg);
+	    //osDelay(50);
+
 		const int res = getNode().spin(uavcan::MonotonicDuration::fromMSec(500));
 		if (res < 0) {
-			if (DEBUG_MAIN == 1) printf("UAVCAN spin fail\r\n");
+			//if (DEBUG_MAIN == 1) printf("UAVCAN spin fail\r\n");
 			Error_Handler();
 		}
+
 	}
   /* USER CODE END 5 */ 
 }

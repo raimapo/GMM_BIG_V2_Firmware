@@ -13,23 +13,23 @@ bool I2C_init(void)
 }
 
 /**
- * Checking if device is ready
+ * @brief Checking if device is ready
  */
 void I2C_IsDeviceReady(I2C_HandleTypeDef *hi2c,  uint16_t DevAddress, uint32_t TestCount, uint32_t timeout){
     if (osSemaphoreWait(I2C_completeID, 1000) == osOK)
     {
 		while (HAL_I2C_IsDeviceReady(hi2c, DevAddress<<1, TestCount, timeout) != HAL_OK) {
-			if (DEBUG_EEPROM == 1 || DEBUG_INA226 == 1) printf("\nDevice not found\n");
+			if (DEBUG_EEPROM == 1) printf("\nDevice not found\n");
 			osSemaphoreRelease(I2C_completeID);
 			Error_Handler();
 		}
-		if (DEBUG_EEPROM == 1 || DEBUG_INA226 == 1) printf("\nDevice found\n");
+		if (DEBUG_EEPROM == 1) printf("\nDevice found\n");
 		osSemaphoreRelease(I2C_completeID);
     }
 }
 
 /**
- * Writing I2C data
+ * @brief Writing I2C data
  */
 void I2C_Write(I2C_HandleTypeDef *hi2c, uint16_t DevAddress, uint8_t* data, uint16_t Size, uint32_t Timeout){
     if (osSemaphoreWait(I2C_completeID, 1000) == osOK)
@@ -45,7 +45,7 @@ void I2C_Write(I2C_HandleTypeDef *hi2c, uint16_t DevAddress, uint8_t* data, uint
 			 * Master restarts communication
 			 */
 			if (HAL_I2C_GetError(hi2c) != HAL_I2C_ERROR_AF) {
-				if (DEBUG_EEPROM == 1 || DEBUG_INA226 == 1) printf("In I2C::WriteBuffer -> error");
+				if (DEBUG_EEPROM == 1) printf("In I2C::WriteBuffer -> error");
 				osSemaphoreRelease(I2C_completeID);
 				Error_Handler();
 			}
@@ -65,7 +65,7 @@ void I2C_Write(I2C_HandleTypeDef *hi2c, uint16_t DevAddress, uint8_t* data, uint
 }
 
 /**
- * Reading I2C data
+ * @brief Reading I2C data
  */
 void I2C_receive(I2C_HandleTypeDef *hi2c, uint16_t DevAddress, uint8_t startreg, uint8_t *data, uint16_t Size, uint32_t Timeout){
 
@@ -81,7 +81,7 @@ void I2C_receive(I2C_HandleTypeDef *hi2c, uint16_t DevAddress, uint8_t startreg,
 				* Master restarts communication
 				*/
 			if (HAL_I2C_GetError(hi2c) != HAL_I2C_ERROR_AF) {
-				if (DEBUG_EEPROM == 1 || DEBUG_INA226 == 1) printf("In I2C::WriteBuffer -> error");
+				if (DEBUG_EEPROM == 1) printf("In I2C::WriteBuffer -> error");
 				osSemaphoreRelease(I2C_completeID);
 				Error_Handler();
 			}

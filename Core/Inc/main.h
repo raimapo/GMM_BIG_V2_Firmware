@@ -42,18 +42,15 @@ extern "C" {
 #include "stdarg.h"
 #include "string.h"
 
-#include "MicroSeconds.h"
-
 #include "as5048a.h"
-#include "eeprom.hpp"
-#include "ina226.hpp"
+#include "eeprom.h"
+#include "ina226.h"
 #include "foc.h"
 
 #define DEBUG_MAIN 0
 #define DEBUG_EEPROM 0
-#define DEBUG_INA226 0
-#define DEBUG_ENCODER 0
-#define DEBUG_MOTOR 0
+//#define DEBUG_ENCODER 0
+//#define DEBUG_MOTOR 0
 
 /* USER CODE END Includes */
 
@@ -105,12 +102,70 @@ void Error_Handler(void);
 #define MOT_DRV_SLEEP_Pin GPIO_PIN_13
 #define MOT_DRV_SLEEP_GPIO_Port GPIOB
 /* USER CODE BEGIN Private defines */
+/**
+ * This would be our configuration storage.
+ */
+/**
+ * UAVCAN params to control motor
+ *
+ * Motor Disable/Enable (for new motor default disable) True/False bool -> uint8_t 0/1
+ * Motor Control (Voltage/Velocity/Angle) -> uint8_t 0/1/2
+ * Motor Motor Contorol value -> float number (Voltage or rad/s or rad)
+ * Motor Calibrate True/False bool -> uint8_t 0/1
+ * Motor pole number integer -> uint8_t not more than 30
+ * Motor FOC Modulation integer -> uint8_t 0/1 (Sin PWM ir Space Vector)
+ * Motor PI values ->#define DEF_PI_VEL_P 0.5
+					 #define DEF_PI_VEL_I 10
+					 #define DEF_PI_VEL_U_RAMP 300
+					 #define DEF_VEL_FILTER_Tf 0.005
+ * Motor Default angle(orientation) -> float number (rad to direct gimbal at starting point or direction)
+ * Motor rotation direction (clockwise or counterclock) -> uint8_t 0/1
+ * Motor orientation (Pitch, Yaw, Roll) -> uint8_t 0/1/2
+ * UAVCAN Node ID-> uint8_t value up to 255
+ * INA226 Enable True/False bool -> uint8_t 0/1
+ */
+/*
+static struct Parameters {
+	bool PowerOn = false;
+	uint8_t ControlType = 1;
+	float ControlValue = 2.0f;
+	bool Calibrate = false;
+	uint8_t PoleNumber = 7;
+	uint8_t FOCModulation = 1;
+	float VEL_P = 0.5f;
+	float VEL_I = 10.0f;
+	float VEL_U_RAMP = 300.0f;
+	float VEL_FILTER_Tf = 0.005f;
+	float Angle = 0.0f;
+	uint8_t Orientation = 0;
+	uint8_t NodeID = 5;
+	bool EnableINA226 = false;
+} configuration;
+*/
+
+struct Parameters {
+	bool PowerOn;
+	uint8_t ControlType;
+	float ControlValue;
+	bool Calibrate;
+	uint8_t PoleNumber;
+	uint8_t FOCModulation;
+	float VEL_P;
+	float VEL_I;
+	float VEL_U_RAMP;
+	float VEL_FILTER_Tf;
+	float Angle;
+	uint8_t Orientation;
+	uint8_t NodeID;
+	bool EnableINA226;
+};
 
 /* USER CODE END Private defines */
 
 #ifdef __cplusplus
 }
 #endif
+
 
 #endif /* __MAIN_H */
 

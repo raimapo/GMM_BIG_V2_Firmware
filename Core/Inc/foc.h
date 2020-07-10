@@ -112,6 +112,11 @@ struct LPF_s{
 class AS5048A;
 
 /**
+ * @brief Declare to use UAVCAN Parameters structure
+ */
+extern struct Parameters configuration;
+
+/**
  * @brief BLDC motor class
  */
 class BLDCMotor {
@@ -119,12 +124,13 @@ class BLDCMotor {
 	public:
 
 
-		uint8_t pole_pairs;
 		TIM_HandleTypeDef* _tim_motor;
 		TIM_HandleTypeDef* _tim_timer;
 
 	    // Power supply woltage
 	    float voltage_power_supply;
+
+	    uint8_t pole_pairs;
 
 	    // state variables
 	     // current motor angle
@@ -159,35 +165,34 @@ class BLDCMotor {
 
   		/**
   		 * @brief Constructor. If you do not use some pins leave it to 17.
-  		 * @param - Number of poles integer
   		 * @param - Motor PWM timer reference
   		 * @param - Microseconds timer reference
   		 */
-	    BLDCMotor(int pp, TIM_HandleTypeDef* htim_motor, TIM_HandleTypeDef* htim_timer);
+	    BLDCMotor(uint8_t pp, TIM_HandleTypeDef* htim_motor, TIM_HandleTypeDef* htim_timer);
 
-	    /*
-	     * change Driver state
+	    /**
+	     * @brief change Driver state
 	     */
 	  	void init();
 	  	void disable();
 	    void enable();
 
-	    /*
-	     * connect encoder
+	    /**
+	     * @brief connect encoder
 	     */
 		AS5048A* encoder;
 		void linkEncoder(AS5048A* enc);
 
-	    /*
-	     *  FOC methods
-	    */
+	    /**
+	     *  @brief FOC methods
+	     */
 	    //Method using FOC to set Uq to the motor at the optimal angle
 	    void setPhaseVoltage(float Uq, float angle_el);
 
 
 
-	    /*
-	     * initilise FOC
+	    /**
+	     * @brief initilise FOC
 	     */
 	    int initFOC();
 	    // iterative method updating motor angles and velocity measurement
@@ -195,9 +200,9 @@ class BLDCMotor {
 	    // iterative control loop defined by controller
 	    void move(float target);
 
-	    /*
-	     *  State calculation methods
-	    */
+	    /**
+	     * @brief State calculation methods
+	     */
 	    //Shaft angle calculation
 	    float shaftAngle();
 	    //Shaft velocity calculation
@@ -206,27 +211,40 @@ class BLDCMotor {
 
 	  private:
 
-	    // phase voltages
+	    //phase voltages
 	    float	Ualpha, Ubeta;
 
-	    //Motor and sensor alignement to the sensors absolute 0 angle
+	    /**
+	     * @brief Motor and sensor alignement to the sensors absolute 0 angle
+	     */
 	    int absoluteZeroAlign();
 
-	    //Encoder alignment to electrical 0 angle
+	    /**
+	     * @brief Encoder alignment to electrical 0 angle
+	     */
 	    int alignEncoder();
 	    int indexSearch();
 
-	    //Set phase voltaget to pwm output
+	    /**
+	     * @brief Set phase voltaget to pwm output
+	     */
 	    void setPwm(int pinPwm, float U);
 
 	    /** Utility funcitons */
-	    //normalizing radian angle to [0,2PI]
+
+	    /**
+	     * @brief normalizing radian angle to [0,2PI]
+	     */
 	    float normalizeAngle(float angle);
 
-	    //Electrical angle calculation
+	    /**
+	     * @brief Electrical angle calculation
+	     */
 	    float electricAngle(float shaftAngle);
 
-	    /** Motor control functions */
+	    /**
+	     *  @brief Motor control functions
+	     */
 	    float controllerPI(float tracking_error, PI_s &controller);
 	    float velocityPI(float tracking_error);
 	    float positionP(float ek);

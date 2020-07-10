@@ -1,9 +1,9 @@
-#include "eeprom.hpp"
+#include <eeprom.h>
 
 /* Public Functions */
 
 /**
- * Constructor
+ * @brief Constructor
  */
 
 EEPROM::EEPROM(I2C_HandleTypeDef* hi2c){
@@ -13,8 +13,8 @@ EEPROM::EEPROM(I2C_HandleTypeDef* hi2c){
 
 
 /**
- * Initialiser
- * Sets up the I2C interface
+ * @brief Initialiser
+ * @note Sets up the I2C interface
  */
 
 void EEPROM::init(void){

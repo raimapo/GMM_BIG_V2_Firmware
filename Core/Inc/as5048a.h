@@ -33,6 +33,8 @@ extern "C" {
 #include "stm32f3xx_hal.h"
 #include <math.h>
 #include "stdio.h"
+#include "main.h"
+#include "stdbool.h"
 
 
 /* Exported types ------------------------------------------------------------*/
@@ -51,6 +53,9 @@ extern "C" {
 #define _2PI 6.28318530718
 #define _3PI_2 4.71238898038
 #define MAX_UINT16_NUMBER 0xFFFF
+
+bool SPI_init(void); //FreeRTOS i2c semaphore to guard precious resorces
+
 
 #ifdef __cplusplus
 
@@ -71,137 +76,144 @@ class AS5048A{
 	public:
 
 	/**
-	 *	Constructor
+	 *	@brief Constructor
 	 */
 	AS5048A(SPI_HandleTypeDef *hspi, GPIO_TypeDef* arg_ps, uint16_t arg_cs, TIM_HandleTypeDef* htim_timer);
-	
+
 	/**
-	 * Initialiser
-	 * Sets up the SPI interface
+	 * @brief Initialiser
+	 * @note Sets up the SPI interface
 	 */
 	void init();
 
 	/**
-	 * Closes the SPI connection
+	 * @brief Closes the SPI connection
 	 */
 	void close();
 	
 	/**
-	 * Open the SPI connection
+	 * @brief Open the SPI connection
 	 */
 	void open();
 	
 	/*
-	 * Read a register from the sensor
-	 * Takes the address of the register as a 16 bit word
-	 * Returns the value of the register
+	 * @brief Read a register from the sensor
+	 * @noteTakes the address of the register as a 16 bit word
+	 * @note Returns the value of the register
 	 */
 	uint16_t read(uint16_t registerAddress);
 	
 	/*
-	 * Write to a register
-	 * Takes the 16-bit  address of the target register and the 16 bit word of data
-	 * to be written to that register
-	 * Returns the value of the register after the write has been performed. This
-	 * is read back from the sensor to ensure a sucessful write.
+	 * @brief Write to a register
+	 * @noteTakes the 16-bit  address of the target register and the 16 bit word of data
+	 * @noteto be written to that register
+	 * @note Returns the value of the register after the write has been performed. This
+	 * @note is read back from the sensor to ensure a sucessful write.
 	 */
 	uint16_t write(uint16_t registerAddress, uint16_t data);
 
 	/**
-	 * Returns the raw angle directly from the sensor
+	 * @brief Returns the raw angle directly from the sensor
 	 */
 	uint16_t getRawRotation();
 
 	/**
-	 * Get the rotation of the sensor relative to the zero position.
-	 *
+	 * @brief Get the rotation of the sensor relative to the zero position.
 	 * @return {int} between -2^13 and 2^13
 	 */
 	int getRotation();
 
 	/**
-	 * returns the value of the state register
+	 * @brief returns the value of the state register
 	 * @return 16 bit word containing flags
 	 */
 	uint16_t getState();
 
-	/*
-	 * Check if an error has been encountered.
+	/**
+	 * @briefCheck if an error has been encountered.
 	 */
 	uint8_t error();
 
 
 	/**
-	 * Returns the value used for Automatic Gain Control (Part of diagnostic
-	 * register)
+	 * @brief Returns the value used for Automatic Gain Control (Part of diagnostic register)
 	 */
 	uint8_t getGain();
 
 
-	/*
-	 * Get and clear the error register by reading it
+	/**
+	 * @brief Get and clear the error register by reading it
 	 */
 	uint16_t getErrors();
 
-	/*
-	 * Set the zero position
+	/**
+	 * @brief Set the zero position
 	 */
 	void setZeroPosition(uint16_t arg_position);
 
-	/*
-	 * Returns the current zero position
+	/**
+	 * @brief Returns the current zero position
 	 */
 	uint16_t getZeroPosition();
 
-	/*
-	 * Returns normalized angle value
+	/**
+	 * @brief Returns normalized angle value
 	 */
 	float normalize(float angle);
 
-	/*
-	 * Returns calculated angle value
+	/**
+	 * @brief Returns calculated angle value
 	 */
 	float read2angle(uint16_t angle);
 
-	/*
-	 * Returns calculated angle value in radians
+	/**
+	 * @brief Returns calculated angle value in radians
 	 */
 	float getAngleInRad();
 
-	/*
-	 * get current angular velocity (rad/s)
+	/**
+	 * @brief get current angular velocity (rad/s)
 	 */
     float getVelocity();
 
-    /*
-     * set current agle as zero angle
-     * return the angle [rad] difference
+    /**
+     * @brief set current agle as zero angle
+     * @return the angle [rad] difference
      */
     float initRelativeZero();
-    /*
-     * return the angle [rad] difference
+    /**
+     * @brief return the angle [rad] difference
      */
     float initAbsoluteZero();
-    /*
-     * returns 1 because it is the absolute sensor
+    /**
+     * @brief returns 1 because it is the absolute sensor
      */
     int hasAbsoluteZero();
-    /*
-     * returns 0  maning it doesn't need search for absolute zero
+    /**
+     * @brief returns 0  maning it doesn't need search for absolute zero
      */
     int needsAbsoluteZeroSearch();
 
 	private:
 
-    // velocity calculation variables
+    /**
+     * @brief velocity calculation variables
+     */
     float angle_prev;
     uint32_t velocity_calc_timestamp;
-    // total angle tracking variables
+    /**
+     * @brief total angle tracking variables
+     */
     float full_rotation_offset;
     float angle_data_prev;
-    // zero offset
+    /**
+     * @brief zero offset
+     */
     uint16_t zero_offset;
 
+    /**
+     * @brief SPI parity calculation for the sensor
+     */
 	uint8_t spiCalcEvenParity(uint16_t value);
 	
 };
