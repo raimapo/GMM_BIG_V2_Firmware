@@ -28,8 +28,6 @@ extern "C" {
 #include "main.h"
 #include "stdbool.h"
 
-bool I2C_init(void); //FreeRTOS i2c semaphore to guard precious resorces
-
 void I2C_IsDeviceReady(I2C_HandleTypeDef *hi2c,  uint16_t DevAddress, uint32_t TestCount, uint32_t timeout);
 void I2C_Write(I2C_HandleTypeDef *hi2c, uint16_t DevAddress, uint8_t *data, uint16_t Size, uint32_t Timeout);
 void I2C_receive(I2C_HandleTypeDef *hi2c, uint16_t DevAddress, uint8_t startreg, uint8_t *data, uint16_t Size, uint32_t Timeout);

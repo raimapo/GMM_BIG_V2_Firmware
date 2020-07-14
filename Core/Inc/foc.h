@@ -114,7 +114,7 @@ class AS5048A;
 /**
  * @brief Declare to use UAVCAN Parameters structure
  */
-extern struct Parameters configuration;
+//extern struct Parameters configuration;
 
 /**
  * @brief BLDC motor class

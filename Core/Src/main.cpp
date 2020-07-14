@@ -216,17 +216,6 @@ FLOATUNION_t num[6];
  */
 void StartCANStatusTask(void const * argument);
 
-osSemaphoreId Param_completeID;
-osSemaphoreDef(Param_complete);
-
-bool Param_init(void)
-{
-    if ((Param_completeID = osSemaphoreCreate(osSemaphore(Param_complete), 1)) == NULL)
-    {
-        return false;
-    }
-    return true;
-}
 
 /**
  *	@brief UART receiver callback for testing values acceptance
@@ -973,7 +962,7 @@ void StartMotorTask(void const * argument)
 		}
 		 */
 
-	    myBLDC.move(2);
+	    myBLDC.move(configuration.ControlValue);
 
 	}
 }
@@ -981,6 +970,7 @@ void StartMotorTask(void const * argument)
 void StartCANStatusTask(void const * argument){
 
 	for(;;) {
+
 		/*
 		 * @brief Health control of the UAVCAN
 		 * @param Integer value from timeout in milisoconds
@@ -990,6 +980,7 @@ void StartCANStatusTask(void const * argument){
 			//if (DEBUG_MAIN == 1) printf("UAVCAN spin fail\r\n");
 			Error_Handler();
 		}
+
 	}
 }
 
@@ -1013,23 +1004,10 @@ void StartDefaultTask(void const * argument)
 	 */
 	uint32_t value = 1000000;
 
-
-	SPI_init();
-
-	/*
-	 * @brief Enable I2C resource control
-	 */
-	I2C_init();
-
 	/*
 	 * @brief Enable EEPROM
 	 */
 	myEEPROM.init();
-
-	/*
-	 * @brief Enable Parameters resource control
-	 */
-	Param_init();
 
 	/**
 	 * @brief Init I2C and INA226 drivers
@@ -1037,7 +1015,7 @@ void StartDefaultTask(void const * argument)
 	 * @retval None
 	 * @note Default INA226 I2C address is 0x40
 	 */
-	//myINA226.init();
+	myINA226.init();
 
 	/**
 	 * @brief Configure INA226
@@ -1047,7 +1025,7 @@ void StartDefaultTask(void const * argument)
 	 * @param Mode - fixed values check library enumerators
 	 * @retval None
 	 */
-	//myINA226.configure(INA226_AVERAGES_1, INA226_BUS_CONV_TIME_1100US, INA226_SHUNT_CONV_TIME_1100US, INA226_MODE_SHUNT_BUS_CONT);
+	myINA226.configure(INA226_AVERAGES_1, INA226_BUS_CONV_TIME_1100US, INA226_SHUNT_CONV_TIME_1100US, INA226_MODE_SHUNT_BUS_CONT);
 
 	/**
 	 * @brief Calibrate INA226. Rshunt = 0.01 ohm, Max excepted current = 4A
@@ -1055,7 +1033,7 @@ void StartDefaultTask(void const * argument)
 	 * @param MAX_Current - MAX current which could flow through Shunt resistor. From Electrical circuit.
 	 * @retval None
 	 */
-	//myINA226.calibrate(0.047, 3.5);
+	myINA226.calibrate(0.047, 3.5);
 
 
 	/*
@@ -1079,47 +1057,45 @@ void StartDefaultTask(void const * argument)
 
 	uint8_t pos[31]={0};
 	myEEPROM.readData(pos, 0x04, 31);
-    if (osSemaphoreWait(Param_completeID, 1000) == osOK)
-    {
-		configuration.PowerOn = pos[0];
-		configuration.ControlType = pos[1];
-		num[0].bytes[0] = pos[2];
-		num[0].bytes[1] = pos[3];
-		num[0].bytes[2] = pos[4];
-		num[0].bytes[3] = pos[5];
-		configuration.ControlValue = num[0].number;
-		configuration.Calibrate = pos[6];
-		configuration.PoleNumber = pos[7];
-		configuration.FOCModulation = pos[8];
-		num[1].bytes[0] = pos[9];
-		num[1].bytes[1] = pos[10];
-		num[1].bytes[2] = pos[11];
-		num[1].bytes[3] = pos[12];
-		configuration.VEL_P = num[1].number ;
-		num[2].bytes[0] = pos[13];
-		num[2].bytes[1] = pos[14];
-		num[2].bytes[2] = pos[15];
-		num[2].bytes[3] = pos[16];
-		configuration.VEL_I = num[2].number;
-		num[3].bytes[0] = pos[17];
-		num[3].bytes[1] = pos[18];
-		num[3].bytes[2] = pos[19];
-		num[3].bytes[3] = pos[20] ;
-		configuration.VEL_U_RAMP = num[3].number;
-		num[4].bytes[0] = pos[21];
-		num[4].bytes[1] = pos[22];
-		num[4].bytes[2] = pos[23];
-		num[4].bytes[3] = pos[24];
-		configuration.VEL_FILTER_Tf = num[4].number;
-		num[5].bytes[0] = pos[25];
-		num[5].bytes[1] = pos[26];
-		num[5].bytes[2] = pos[27];
-		num[5].bytes[3] = pos[28];
-		configuration.Angle = num[5].number;
-		configuration.Orientation = pos[29];
-		configuration.NodeID = pos[30];
-		osSemaphoreRelease(Param_completeID);
-    }
+
+	configuration.PowerOn = pos[0];
+	configuration.ControlType = pos[1];
+	num[0].bytes[0] = pos[2];
+	num[0].bytes[1] = pos[3];
+	num[0].bytes[2] = pos[4];
+	num[0].bytes[3] = pos[5];
+	configuration.ControlValue = num[0].number;
+	configuration.Calibrate = pos[6];
+	configuration.PoleNumber = pos[7];
+	configuration.FOCModulation = pos[8];
+	num[1].bytes[0] = pos[9];
+	num[1].bytes[1] = pos[10];
+	num[1].bytes[2] = pos[11];
+	num[1].bytes[3] = pos[12];
+	configuration.VEL_P = num[1].number ;
+	num[2].bytes[0] = pos[13];
+	num[2].bytes[1] = pos[14];
+	num[2].bytes[2] = pos[15];
+	num[2].bytes[3] = pos[16];
+	configuration.VEL_I = num[2].number;
+	num[3].bytes[0] = pos[17];
+	num[3].bytes[1] = pos[18];
+	num[3].bytes[2] = pos[19];
+	num[3].bytes[3] = pos[20] ;
+	configuration.VEL_U_RAMP = num[3].number;
+	num[4].bytes[0] = pos[21];
+	num[4].bytes[1] = pos[22];
+	num[4].bytes[2] = pos[23];
+	num[4].bytes[3] = pos[24];
+	configuration.VEL_FILTER_Tf = num[4].number;
+	num[5].bytes[0] = pos[25];
+	num[5].bytes[1] = pos[26];
+	num[5].bytes[2] = pos[27];
+	num[5].bytes[3] = pos[28];
+	configuration.Angle = num[5].number;
+	configuration.Orientation = pos[29];
+	configuration.NodeID = pos[30];
+
 	/**
 	 * @brief Set Board name
 	 * @param Name as Char symbols
@@ -1164,6 +1140,7 @@ void StartDefaultTask(void const * argument)
      * Now, we need to define some glue logic between the server (below) and our configuration storage (above).
      * This is done via the interface uavcan::IParamManager.
      */
+
     class : public uavcan::IParamManager {
 
     	void getParamNameByIndex(Index index, Name& out_name) const override {
@@ -1184,9 +1161,6 @@ void StartDefaultTask(void const * argument)
 
     	void assignParamValue(const Name& name, const Value& value) override {
     		if (name == "Power On/Off") {
-    			/*
-    			 * Logic - if Parameter "foo" is an integer, so we accept only integer values here.
-    			 */
     			if (value.is(uavcan::protocol::param::Value::Tag::boolean_value))
     				configuration.PowerOn = *value.as<uavcan::protocol::param::Value::Tag::boolean_value>();
         	} else if (name == "Control Type") {
@@ -1225,8 +1199,8 @@ void StartDefaultTask(void const * argument)
     		} else if (name == "Node ID") {
     			if (value.is(uavcan::protocol::param::Value::Tag::integer_value))
     				configuration.NodeID = *value.as<uavcan::protocol::param::Value::Tag::integer_value>();
-        	} else
-        		if (DEBUG_MAIN == 1) printf("Can't assign parameter. Check if type is correct\r\n");
+        	} //else
+        		//if (DEBUG_MAIN == 1) printf("Can't assign parameter. Check if type is correct\r\n");
         }
 
         void readParamValue(const Name& name, Value& out_value) const override {
@@ -1256,12 +1230,12 @@ void StartDefaultTask(void const * argument)
           		out_value.to<uavcan::protocol::param::Value::Tag::integer_value>() = configuration.Orientation;
           	else if (name == "Node ID")
           		out_value.to<uavcan::protocol::param::Value::Tag::integer_value>() = configuration.NodeID;
-        	else
-        		if (DEBUG_MAIN == 1) printf("Can't read parameter. Check if type is correct\r\n");
+        	//else
+        		//if (DEBUG_MAIN == 1) printf("Can't read parameter. Check if type is correct\r\n");
         }
 
         int saveAllParams() override {
-        	if (DEBUG_MAIN == 1) printf("Save - this implementation does not require any action\r\n");
+        	//if (DEBUG_MAIN == 1) printf("Save - this implementation does not require any action\r\n");
 
 			uint8_t pos[31]={0};
  			pos[0] = configuration.PowerOn;
@@ -1302,12 +1276,6 @@ void StartDefaultTask(void const * argument)
 			pos[29] = configuration.Orientation;
 			pos[30] = configuration.NodeID;
 
-      	  /**
-      	   * @brief Write data from EEPROM
-      	   * @param pos   - array or variable where readed data will be pushed
-      	   * @param start - start address in the momory in HEX format
-      	   * @param size  - Size of data to read sequentally
-      	   */
         	myEEPROM.writeData(pos, 0x04, 31);
         	osDelay(100);
         	return 0;     // Zero means that everything is fine.
@@ -1318,10 +1286,7 @@ void StartDefaultTask(void const * argument)
         	configuration = Parameters();
         	return 0;
         }
-
-        /**
-         * Note that this method is optional. It can be left unimplemented.
-         */
+/*
         void readParamDefaultMaxMin(const Name& name, Value& out_def, NumericValue& out_max, NumericValue& out_min) const override {
         	if (name == "Control Type") {
         		out_def.to<uavcan::protocol::param::Value::Tag::integer_value>() = Parameters().ControlType;
@@ -1354,6 +1319,7 @@ void StartDefaultTask(void const * argument)
         		//if (DEBUG_MAIN == 1) printf("Can't read the limits for parameter\r\n");
         	}
         }
+        */
     } param_manager;
 
     /**
@@ -1371,19 +1337,14 @@ void StartDefaultTask(void const * argument)
      * Many embedded applications require a restart before the new configuration settings can
      * be applied, so it is highly recommended to also support the remote restart service.
      */
+
     class : public uavcan::IRestartRequestHandler {
     	bool handleRestartRequest(uavcan::NodeID request_source) override {
-    		//if (DEBUG_MAIN == 1) printf("Got a remote restart request from %d\r\n", int(request_source.get()));
-            /**
-             * We won't really restart, so return 'false'.
-             * Returning 'true' would mean that we're going to restart for real.
-             * Note that it is recognized that some nodes may not be able to respond to the
-             * restart request (e.g. if they restart immediately from the service callback).
-             */
     		HAL_NVIC_SystemReset(); //Ši eilutė leido realiai restartuoti
     		return true;
         }
     } restart_request_handler;
+
 
     /**
      * Installing the restart request handler.
@@ -1391,9 +1352,9 @@ void StartDefaultTask(void const * argument)
     getNode().setRestartRequestHandler(&restart_request_handler); // Done.
 
 	//Motor status publisher
-    //uavcan::Publisher<msg::MotorStatus> mot_status(getNode());
-	//mot_status.init();
-	//msg::MotorStatus mot_status_msg;
+    uavcan::Publisher<msg::MotorStatus> mot_status(getNode());
+	mot_status.init();
+	msg::MotorStatus mot_status_msg;
 
 	/**
 	 * @brief Start UAVCAN normal operation
@@ -1403,8 +1364,8 @@ void StartDefaultTask(void const * argument)
 	getNode().setModeOperational();
 
 
-	//osThreadStaticDef(CANTask, StartCANStatusTask, osPriorityNormal, 0, CAN_STACK_SIZE, defaultTaskBuffer1, &defaultTaskControlBlock1);
-	//defaultTaskHandle = osThreadCreate(osThread(CANTask), NULL);
+	osThreadStaticDef(CANTask, StartCANStatusTask, osPriorityNormal, 0, CAN_STACK_SIZE, defaultTaskBuffer1, &defaultTaskControlBlock1);
+	defaultTaskHandle = osThreadCreate(osThread(CANTask), NULL);
 
 	/**
 	 * @brief if first time or calibration needed check
@@ -1428,21 +1389,15 @@ void StartDefaultTask(void const * argument)
 	for(;;)
 	{
 
-		//mot_status_msg.axis_id = configuration.Orientation; //configuration.Orientation;
-		//mot_status_msg.motor_pos_rad_raw = 0; //fmod(angleSensor.getAngleInRad(), 6.28f);
-		//mot_status_msg.motor_pos_rad = 0;
+		mot_status_msg.axis_id = 1; //configuration.Orientation;
+		mot_status_msg.motor_pos_rad_raw = fmod(angleSensor.getAngleInRad(), 6.28f);
+		mot_status_msg.motor_pos_rad = mot_status_msg.motor_pos_rad_raw;
 		//mot_status_msg.bus_voltage =  myINA226.readBusVoltage();
 		//mot_status_msg.bus_power = myINA226.readBusPower();
 		//mot_status_msg.shunt_voltage = myINA226.readShuntVoltage();
 		//mot_status_msg.shunt_current = myINA226.readShuntCurrent();
-	    //mot_status.broadcast(mot_status_msg);
-	    //osDelay(50);
-
-		const int res = getNode().spin(uavcan::MonotonicDuration::fromMSec(500));
-		if (res < 0) {
-			//if (DEBUG_MAIN == 1) printf("UAVCAN spin fail\r\n");
-			Error_Handler();
-		}
+	    mot_status.broadcast(mot_status_msg);
+	    osDelay(50);
 
 	}
   /* USER CODE END 5 */ 

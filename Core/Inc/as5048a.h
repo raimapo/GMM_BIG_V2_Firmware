@@ -54,9 +54,6 @@ extern "C" {
 #define _3PI_2 4.71238898038
 #define MAX_UINT16_NUMBER 0xFFFF
 
-bool SPI_init(void); //FreeRTOS i2c semaphore to guard precious resorces
-
-
 #ifdef __cplusplus
 
 class AS5048A{
