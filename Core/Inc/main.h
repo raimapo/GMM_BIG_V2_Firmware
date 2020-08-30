@@ -157,7 +157,6 @@ struct Parameters {
 	float Angle;
 	uint8_t Orientation;
 	uint8_t NodeID;
-	bool EnableINA226;
 };
 
 /* USER CODE END Private defines */
@@ -165,7 +164,6 @@ struct Parameters {
 #ifdef __cplusplus
 }
 #endif
-
 
 #endif /* __MAIN_H */
 

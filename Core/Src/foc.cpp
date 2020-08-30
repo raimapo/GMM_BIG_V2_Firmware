@@ -370,11 +370,11 @@ void BLDCMotor::setPwm(int pinPwm, float U) {
   U_pwm = (U_pwm < 0) ? 0 : (U_pwm >= 1000) ? 1000 : U_pwm;
 
   // write hardware pwm
-  if (pinPwm == 3)
-	  _tim_motor->Instance->CCR1 = U_pwm;
-  if (pinPwm == 1)
-	  _tim_motor->Instance->CCR2 = U_pwm;
   if (pinPwm == 2)
+	  _tim_motor->Instance->CCR1 = U_pwm;
+  if (pinPwm == 3)
+	  _tim_motor->Instance->CCR2 = U_pwm;
+  if (pinPwm == 1)
 	  _tim_motor->Instance->CCR3 = U_pwm;
 }
 

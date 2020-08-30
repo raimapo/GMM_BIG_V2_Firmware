@@ -50,7 +50,7 @@
 #define __NVIC_PRIO_BITS          4U       /*!< STM32F303xC devices use 4 Bits for the Priority Levels */
 #define __Vendor_SysTickConfig    0U       /*!< Set to 1 if different SysTick Config is used */
 #if !defined (__FPU_PRESENT)
-#define __FPU_PRESENT             1U       /*!< STM32F303xC devices provide an FPU */
+	#define __FPU_PRESENT             1U       /*!< STM32F303xC devices provide an FPU */
 #endif
 
 /**

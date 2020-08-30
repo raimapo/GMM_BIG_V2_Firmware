@@ -1,20 +1,5 @@
 #include "as5048a.h"
 
-osSemaphoreId SPI_completeID;
-osSemaphoreDef(SPI_complete);
-
-/**
- * @brief initialize SPI resources safeguard
- */
-bool SPI_init(void)
-{
-    if ((SPI_completeID = osSemaphoreCreate(osSemaphore(SPI_complete), 1)) == NULL)
-    {
-        return false;
-    }
-    return true;
-}
-
 /**
  * @brief Constructor
  */
@@ -100,37 +85,33 @@ uint8_t AS5048A::spiCalcEvenParity(uint16_t value){
  */
 uint16_t AS5048A::read(uint16_t registerAddress){
 	uint8_t data[2];
-    if (osSemaphoreWait(SPI_completeID, 1000) == osOK)
-    {
 
-		uint16_t command = 0b0100000000000000; // PAR=0 R/W=R
-		command = command | registerAddress;
+	uint16_t command = 0b0100000000000000; // PAR=0 R/W=R
+	command = command | registerAddress;
 
-		//Add a parity bit on the the MSB
-		command |= ((uint16_t)spiCalcEvenParity(command)<<15);
+	//Add a parity bit on the the MSB
+	command |= ((uint16_t)spiCalcEvenParity(command)<<15);
 
-		//Split the command into two bytes
-		data[1] = command & 0xFF;
-		data[0] = ( command >> 8 ) & 0xFF;
+	//Split the command into two bytes
+	data[1] = command & 0xFF;
+	data[0] = ( command >> 8 ) & 0xFF;
 
-		EN_SPI;
-		HAL_SPI_Transmit(_spi, (uint8_t *)&data, 2, 0xFFFF);
-		while (HAL_SPI_GetState(_spi) != HAL_SPI_STATE_READY) {}
-		DIS_SPI;
+	EN_SPI;
+	HAL_SPI_Transmit(_spi, (uint8_t *)&data, 2, 0xFFFF);
+	while (HAL_SPI_GetState(_spi) != HAL_SPI_STATE_READY) {}
+	DIS_SPI;
 
-		EN_SPI;
-		HAL_SPI_Receive(_spi, (uint8_t *)&data, 2, 0xFFFF);
-		while (HAL_SPI_GetState(_spi) != HAL_SPI_STATE_READY) {}
-		DIS_SPI;
+	EN_SPI;
+	HAL_SPI_Receive(_spi, (uint8_t *)&data, 2, 0xFFFF);
+	while (HAL_SPI_GetState(_spi) != HAL_SPI_STATE_READY) {}
+	DIS_SPI;
 
-		if (data[1] & 0x40) {
-			errorFlag = 1;
-		} else {
-			errorFlag = 0;
-		}
+	if (data[1] & 0x40) {
+		errorFlag = 1;
+	} else {
+		errorFlag = 0;
+	}
 
-		osSemaphoreRelease(SPI_completeID);
-    }
 	//Return the data, stripping the parity and error bits
 	return (( ( data[1] & 0xFF ) << 8 ) | ( data[0] & 0xFF )) & ~0xC000;
 }
@@ -146,51 +127,46 @@ uint16_t AS5048A::write(uint16_t registerAddress, uint16_t data) {
 
 	uint8_t dat[2];
 
-    if (osSemaphoreWait(SPI_completeID, 1000) == osOK)
-    {
+	uint16_t command = 0b0000000000000000; // PAR=0 R/W=W
+	command |= registerAddress;
 
-		uint16_t command = 0b0000000000000000; // PAR=0 R/W=W
-		command |= registerAddress;
+	//Add a parity bit on the the MSB
+	command |= ((uint16_t)spiCalcEvenParity(command)<<15);
 
-		//Add a parity bit on the the MSB
-		command |= ((uint16_t)spiCalcEvenParity(command)<<15);
+	//Split the command into two bytes
+	dat[1] = command & 0xFF;
+	dat[0] = ( command >> 8 ) & 0xFF;
 
-		//Split the command into two bytes
-		dat[1] = command & 0xFF;
-		dat[0] = ( command >> 8 ) & 0xFF;
+	//Start the write command with the target address
+	EN_SPI;
+	HAL_SPI_Transmit(_spi, (uint8_t *)&dat, 2, 0xFFFF);
+	while (HAL_SPI_GetState(_spi) != HAL_SPI_STATE_READY) {}
+	DIS_SPI;
 
-		//Start the write command with the target address
-		EN_SPI;
-		HAL_SPI_Transmit(_spi, (uint8_t *)&dat, 2, 0xFFFF);
-		while (HAL_SPI_GetState(_spi) != HAL_SPI_STATE_READY) {}
-		DIS_SPI;
+	uint16_t dataToSend = 0b0000000000000000;
+	dataToSend |= data;
 
-		uint16_t dataToSend = 0b0000000000000000;
-		dataToSend |= data;
+	//Craft another packet including the data and parity
+	dataToSend |= ((uint16_t)spiCalcEvenParity(dataToSend)<<15);
+	dat[1] = command & 0xFF;
+	dat[0] = ( command >> 8 ) & 0xFF;
 
-		//Craft another packet including the data and parity
-		dataToSend |= ((uint16_t)spiCalcEvenParity(dataToSend)<<15);
-		dat[1] = command & 0xFF;
-		dat[0] = ( command >> 8 ) & 0xFF;
+	//Now send the data packet
+	EN_SPI;
+	HAL_SPI_Transmit(_spi, (uint8_t *)&dat, 2, 0xFFFF);
+	while (HAL_SPI_GetState(_spi) != HAL_SPI_STATE_READY) {}
+	DIS_SPI;
 
-		//Now send the data packet
-		EN_SPI;
-		HAL_SPI_Transmit(_spi, (uint8_t *)&dat, 2, 0xFFFF);
-		while (HAL_SPI_GetState(_spi) != HAL_SPI_STATE_READY) {}
-		DIS_SPI;
+	//Send a NOP to get the new data in the register
+	dat[1] = 0x00;
+	dat[0] = 0x00;
+	EN_SPI;
+	HAL_SPI_Transmit(_spi, (uint8_t *)&dat, 2, 0xFFFF);
+	while (HAL_SPI_GetState(_spi) != HAL_SPI_STATE_READY) {}
+	HAL_SPI_Receive(_spi, (uint8_t *)&dat, 2, 0xFFFF);
+	while (HAL_SPI_GetState(_spi) != HAL_SPI_STATE_READY) {}
+	DIS_SPI;
 
-		//Send a NOP to get the new data in the register
-		dat[1] = 0x00;
-		dat[0] = 0x00;
-		EN_SPI;
-		HAL_SPI_Transmit(_spi, (uint8_t *)&dat, 2, 0xFFFF);
-		while (HAL_SPI_GetState(_spi) != HAL_SPI_STATE_READY) {}
-		HAL_SPI_Receive(_spi, (uint8_t *)&dat, 2, 0xFFFF);
-		while (HAL_SPI_GetState(_spi) != HAL_SPI_STATE_READY) {}
-		DIS_SPI;
-
-		osSemaphoreRelease(SPI_completeID);
-    }
 	//Return the data, stripping the parity and error bits
 	return (( ( dat[1] & 0xFF ) << 8 ) | ( dat[0] & 0xFF )) & ~0xC000;
 }

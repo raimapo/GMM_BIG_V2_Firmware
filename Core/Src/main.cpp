@@ -34,6 +34,8 @@
 #include <uavcan/protocol/param_server.hpp>
 
 #include <msg/MotorStatus.hpp>
+
+#include "as5048a.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -92,7 +94,11 @@ void StartDefaultTask(void const * argument);
  * @brief Initialization of UAVCAN Parameters structure
  * @note for first time flash board strore initial parameters in the memory and change them while you need them
  */
-struct Parameters configuration = {false, 1, 2.0f, false, 7, 1, 0.2f, 20.0f, 1000.0f, 0.01f, 0.0f, 0, 5, false};
+struct Parameters configuration = {false, 1, 2.0f, false, 7, 1, 0.2f, 20.0f, 1000.0f, 0.01f, 0.0f, 0, 5};
+
+//Structure memory pool
+osPoolDef (object_pool, 10, configuration);  // Declare memory pool
+osPoolId  (object_pool_id);                 // Memory pool ID
 
 /**
  * @brief NDEBUG for SWO IDE debuging
@@ -743,6 +749,8 @@ static void MX_GPIO_Init(void)
 void StartMotorCalibrateTask(void const * argument)
 {
   /* USER CODE BEGIN 5 */
+	//Create a memory pool in the thread to use and exchange data
+	object_pool_id = osPoolCreate(osPool(object_pool));
 
 	/**
 	 * @brief power supply voltage
@@ -810,6 +818,7 @@ void StartMotorCalibrateTask(void const * argument)
 
 	// calculate the pole pair number
 	uint8_t pp = round((pp_search_angle)/(angle_end-angle_begin));
+	configuration.PoleNumber = pp;
 
 
 	//if (DEBUG_MOTOR == 1) printf("Estimated pole pairs number is: %d\n", pp);
@@ -842,6 +851,9 @@ void StartMotorTask(void const * argument)
 {
   /* USER CODE BEGIN 5 */
 
+	//Create a memory pool in the thread to use and exchange data
+	object_pool_id = osPoolCreate(osPool(object_pool));
+
 	/**
 	 * @briefpower supply voltage
 	 * @note default 12V
@@ -863,7 +875,10 @@ void StartMotorTask(void const * argument)
 	 * @brief Set FOC Mathematical algoritm
 	 * @note SinePWM or SpaceVectorPWM
 	 */
-	myBLDC.foc_modulation = FOCModulationType::SinePWM;
+	if (configuration.FOCModulation == 0)
+		myBLDC.foc_modulation = FOCModulationType::SinePWM;
+	if (configuration.FOCModulation == 1)
+		myBLDC.foc_modulation = FOCModulationType::SpaceVectorPWM;
 
 	/**
 	 * @brief Enable DRV8313 and FOC drivers
@@ -922,48 +937,54 @@ void StartMotorTask(void const * argument)
 	/* Infinite loop */
 	for(;;) {
 
-		/**
-		 * @brief Set FOC loop to be used
-		 * @param voltage, velocity, angle
-		 */
+		if (configuration.PowerOn == true) {
+			/**
+			 * @brief Set FOC loop to be used
+			 * @param voltage, velocity, angle
+			 */
 
-		myBLDC.controller = ControlType::velocity;
+			if (configuration.ControlType == 0)
+				myBLDC.controller = ControlType::voltage;
+			if (configuration.ControlType == 1)
+				myBLDC.controller = ControlType::velocity;
+			if (configuration.ControlType == 2)
+				myBLDC.controller = ControlType::angle;
 
-		/**
-		 * @brief print AS5048A Encoder data
-		 */
-		//#if (DEBUG_ENCODER == 1)
-			//float rad = angleSensor.getAngleInRad();
-			//float vel = angleSensor.getVelocity();
-			//printf("Current Angle: %f rad\n", rad);
-			//printf("Velocity: %f rad/s\n", vel);
-		//#endif
+			/**
+			 * @brief print AS5048A Encoder data
+			 */
+			//#if (DEBUG_ENCODER == 1)
+				//float rad = angleSensor.getAngleInRad();
+				//float vel = angleSensor.getVelocity();
+				//printf("Current Angle: %f rad\n", rad);
+				//printf("Velocity: %f rad/s\n", vel);
+			//#endif
 
-		/**
-		 * @brief iterative state calculation calculating angle
-		 * @brief and setting FOC phase voltage
-		 * @brief the faster you run this function the better
-		 * @brief the best would be to be in ~10kHz range
-		 */
-		myBLDC.loopFOC();
+			/**
+			 * @brief iterative state calculation calculating angle
+			 * @brief and setting FOC phase voltage
+			 * @brief the faster you run this function the better
+			 * @brief the best would be to be in ~10kHz range
+			 */
+			myBLDC.loopFOC();
 
-		/**
-		 * @brief iterative function setting the outer loop target
-		 * @brief velocity, position or voltage
-		 * @brief this function can be run at much lower frequency than loopFOC function
-		 * @brief it can go as low as ~50Hz
-		 * @brief the best would be to be in ~10kHz range
-		 */
-		/*
-		if (update_target)
-		{
-		  update_target = 0;
-		  if (DEBUG_MOTOR == 1) printf ("Voltage: %f\n", target_voltage);
+			/**
+			 * @brief iterative function setting the outer loop target
+			 * @brief velocity, position or voltage
+			 * @brief this function can be run at much lower frequency than loopFOC function
+			 * @brief it can go as low as ~50Hz
+			 * @brief the best would be to be in ~10kHz range
+			 */
+			/*
+			if (update_target)
+			{
+			  update_target = 0;
+			  if (DEBUG_MOTOR == 1) printf ("Voltage: %f\n", target_voltage);
+			}
+			 */
+
+			myBLDC.move(configuration.ControlValue);
 		}
-		 */
-
-	    myBLDC.move(configuration.ControlValue);
-
 	}
 }
 
@@ -998,6 +1019,9 @@ void StartCANStatusTask(void const * argument){
 void StartDefaultTask(void const * argument)
 {
   /* USER CODE BEGIN 5 */
+
+	//Create a memory pool in the thread to use and exchange data
+	object_pool_id = osPoolCreate(osPool(object_pool));
 
 	/**
 	 * @brief CAN Speed value
@@ -1118,11 +1142,11 @@ void StartDefaultTask(void const * argument)
 	 * @retval None
 	 */
 
-	//if (configuration.NodeID < 0 || configuration.NodeID > 255) {
+	if (configuration.NodeID < 0 || configuration.NodeID > 255) {
 		getNode().setNodeID(5);
-	//} else {
-			//getNode().setNodeID(configuration.NodeID);
-	//}
+	} else {
+			getNode().setNodeID(configuration.NodeID);
+	}
 
 
 	/**
@@ -1286,6 +1310,7 @@ void StartDefaultTask(void const * argument)
         	configuration = Parameters();
         	return 0;
         }
+
 /*
         void readParamDefaultMaxMin(const Name& name, Value& out_def, NumericValue& out_max, NumericValue& out_min) const override {
         	if (name == "Control Type") {
@@ -1320,6 +1345,7 @@ void StartDefaultTask(void const * argument)
         	}
         }
         */
+
     } param_manager;
 
     /**
@@ -1370,11 +1396,11 @@ void StartDefaultTask(void const * argument)
 	/**
 	 * @brief if first time or calibration needed check
 	 */
-	bool Calib = false;
-	if (Calib == true) {
+	//bool Calib = false;
+	if (configuration.Calibrate == true) {
 		osThreadDef(MotorCalibrateTask, StartMotorCalibrateTask, osPriorityNormal, 0, 128);
 		MotorCalibrateTaskHandle = osThreadCreate(osThread(MotorCalibrateTask), NULL);
-		Calib = false;
+		configuration.Calibrate  = false;
 	} else {
 		/**
 		 * @brief Start Motor, Encoder and FOC task
@@ -1383,19 +1409,22 @@ void StartDefaultTask(void const * argument)
 		defaultTaskHandle = osThreadCreate(osThread(MotorTask), NULL);
 	}
 
-
+	/**
+	 * @brief Enable AS5048A Encoder drivers
+	 */
+	angleSensor.init();
 
 	/* Infinite loop */
 	for(;;)
 	{
 
-		mot_status_msg.axis_id = 1; //configuration.Orientation;
-		mot_status_msg.motor_pos_rad_raw = fmod(angleSensor.getAngleInRad(), 6.28f);
-		mot_status_msg.motor_pos_rad = mot_status_msg.motor_pos_rad_raw;
-		//mot_status_msg.bus_voltage =  myINA226.readBusVoltage();
-		//mot_status_msg.bus_power = myINA226.readBusPower();
-		//mot_status_msg.shunt_voltage = myINA226.readShuntVoltage();
-		//mot_status_msg.shunt_current = myINA226.readShuntCurrent();
+		mot_status_msg.axis_id = configuration.Orientation;
+		//mot_status_msg.motor_pos_rad_raw = fmod(angleSensor.getAngleInRad(), 6.28f);
+		//mot_status_msg.motor_pos_rad = mot_status_msg.motor_pos_rad_raw;
+		mot_status_msg.bus_voltage =  myINA226.readBusVoltage();
+		mot_status_msg.bus_power = myINA226.readBusPower();
+		mot_status_msg.shunt_voltage = myINA226.readShuntVoltage();
+		mot_status_msg.shunt_current = myINA226.readShuntCurrent();
 	    mot_status.broadcast(mot_status_msg);
 	    osDelay(50);
 
