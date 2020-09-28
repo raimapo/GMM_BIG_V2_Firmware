@@ -2,10 +2,11 @@
 
 uint8 axis_id #Axis id
 
-float16 motor_pos_rad #Radians
+#Radians
+float16 motor_pos_rad 		# could be inverted or identical to motor_pos_rad_raw
 float16 motor_pos_rad_raw
 
-float16 bus_voltage	# V
-float16 bus_power		# W
-float16 shunt_voltage	# V
-float16 shunt_current	# A
+#float16 bus_voltage	# V
+#float16 bus_power		# W
+#float16 shunt_voltage	# V
+#float16 shunt_current	# A

@@ -272,6 +272,7 @@ float AS5048A::read2angle(uint16_t angle) {
  * @note angle is in radians [rad]
  */
 float AS5048A::getAngleInRad(){
+	taskENTER_CRITICAL();
 	// raw data from the sensor
 	float angle_data = getRawRotation();
 
@@ -289,6 +290,7 @@ float AS5048A::getAngleInRad(){
 	angle_data -= (int)zero_offset;
 	// return the full angle
 	// (number of full rotations)*2PI + current sensor angle
+	taskEXIT_CRITICAL();
  	return full_rotation_offset + ( angle_data / (float)16384) * _2PI;
 }
 

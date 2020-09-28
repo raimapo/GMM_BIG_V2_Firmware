@@ -1,0 +1,23 @@
+std_abs.h:74:3:constexpr float std::abs(float)	16	static
+cmath:241:3:constexpr float std::fabs(float)	16	static
+foc.cpp:6:1:BLDCMotor::BLDCMotor(uint8_t, TIM_HandleTypeDef*, TIM_HandleTypeDef*)	24	static
+foc.cpp:59:6:void BLDCMotor::linkEncoder(AS5048A*)	16	static
+foc.cpp:65:6:void BLDCMotor::init()	16	static
+foc.cpp:91:6:void BLDCMotor::disable()	16	static
+foc.cpp:105:6:void BLDCMotor::enable()	16	static
+foc.cpp:119:5:int BLDCMotor::alignEncoder()	24	static
+foc.cpp:145:5:int BLDCMotor::absoluteZeroAlign()	32	static
+foc.cpp:178:6:int BLDCMotor::initFOC()	24	static
+foc.cpp:190:7:float BLDCMotor::shaftAngle()	16	static
+foc.cpp:195:7:float BLDCMotor::shaftVelocity()	48	static
+foc.cpp:218:7:float BLDCMotor::electricAngle(float)	16	static
+foc.cpp:225:6:void BLDCMotor::loopFOC()	24	static
+foc.cpp:237:6:void BLDCMotor::move(float)	16	static
+foc.cpp:263:6:void BLDCMotor::setPhaseVoltage(float, float)	64	static
+foc.cpp:360:6:void BLDCMotor::setPwm(int, float)	40	static
+cmath:290:5:constexpr typename __gnu_cxx::__promote_2<_Tp, _Up>::__type std::fmod(_Tp, _Up) [with _Tp = float; _Up = double]	32	static
+foc.cpp:385:7:float BLDCMotor::normalizeAngle(float)	32	static
+foc.cpp:393:7:float BLDCMotor::controllerPI(float, PI_s&)	56	static
+foc.cpp:427:7:float BLDCMotor::velocityPI(float)	16	static
+foc.cpp:432:7:float BLDCMotor::positionP(float)	24	static
+foc.cpp:439:7:float BLDCMotor::velocityIndexSearchPI(float)	16	static

@@ -47,6 +47,7 @@
 /* USER CODE BEGIN PD */
 #define MAIN_EVENT_SAVE_CONFIG	( 1 << 0 )
 #define MAIN_EVENT_BROADCAST    ( 1 << 1 )
+#define MAIN_EVENT_USE_DATA    ( 1 << 2 )
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -199,7 +200,7 @@ EEPROM myEEPROM(&hi2c1);
 /**
  *	@brief INA226 voltage, current and power measurement constructor
  */
-INA226 myINA226(&hi2c1);
+//INA226 myINA226(&hi2c1);
 
 
 /**
@@ -834,7 +835,10 @@ void StartMotorCalibrateTask(void const * argument)
 
 	// calculate the pole pair number
 	uint8_t pp = round((pp_search_angle)/(angle_end-angle_begin));
+	taskENTER_CRITICAL();
 	configuration.PoleNumber = pp;
+	taskEXIT_CRITICAL();
+
 
 
 	//if (DEBUG_MOTOR == 1) printf("Estimated pole pairs number is: %d\n", pp);
@@ -867,6 +871,11 @@ void StartMotorTask(void const * argument)
 {
   /* USER CODE BEGIN 5 */
 
+	bool power = false;
+	uint8_t CT = 1;
+	uint8_t foc_mod = 0;
+	float CV = 0;
+
 	/**
 	 * @briefpower supply voltage
 	 * @note default 12V
@@ -888,9 +897,12 @@ void StartMotorTask(void const * argument)
 	 * @brief Set FOC Mathematical algoritm
 	 * @note SinePWM or SpaceVectorPWM
 	 */
-	if (configuration.FOCModulation == 0)
+	taskENTER_CRITICAL();
+	foc_mod = myBLDC.foc_modulation;
+	taskEXIT_CRITICAL();
+	if (foc_mod == 0)
 		myBLDC.foc_modulation = FOCModulationType::SinePWM;
-	if (configuration.FOCModulation == 1)
+	if (foc_mod == 1)
 		myBLDC.foc_modulation = FOCModulationType::SpaceVectorPWM;
 
 	/**
@@ -948,19 +960,27 @@ void StartMotorTask(void const * argument)
 	//}
 
 	/* Infinite loop */
+
 	for(;;) {
 
-		if (configuration.PowerOn == true) {
+		//EventBits_t main_events = xEventGroupGetBits( xMainEventGroupHandle );
+		taskENTER_CRITICAL();
+		power = configuration.PowerOn;
+		CT = configuration.ControlType;
+		CV = configuration.ControlValue;
+		taskEXIT_CRITICAL();
+
+		if (power == true) {
 			/**
 			 * @brief Set FOC loop to be used
 			 * @param voltage, velocity, angle
 			 */
 
-			if (configuration.ControlType == 0)
+			if (CT == 0)
 				myBLDC.controller = ControlType::voltage;
-			if (configuration.ControlType == 1)
+			if (CT == 1)
 				myBLDC.controller = ControlType::velocity;
-			if (configuration.ControlType == 2)
+			if (CT == 2)
 				myBLDC.controller = ControlType::angle;
 
 			/**
@@ -996,7 +1016,7 @@ void StartMotorTask(void const * argument)
 			}
 			 */
 
-			myBLDC.move(configuration.ControlValue);
+			myBLDC.move(CV);
 		}
 	}
 }
@@ -1056,7 +1076,7 @@ void StartDefaultTask(void const * argument)
 	 * @retval None
 	 * @note Default INA226 I2C address is 0x40
 	 */
-	myINA226.init();
+	//myINA226.init();
 
 	/**
 	 * @brief Configure INA226
@@ -1066,7 +1086,7 @@ void StartDefaultTask(void const * argument)
 	 * @param Mode - fixed values check library enumerators
 	 * @retval None
 	 */
-	myINA226.configure(INA226_AVERAGES_1, INA226_BUS_CONV_TIME_1100US, INA226_SHUNT_CONV_TIME_1100US, INA226_MODE_SHUNT_BUS_CONT);
+	//myINA226.configure(INA226_AVERAGES_1, INA226_BUS_CONV_TIME_1100US, INA226_SHUNT_CONV_TIME_1100US, INA226_MODE_SHUNT_BUS_CONT);
 
 	/**
 	 * @brief Calibrate INA226. Rshunt = 0.01 ohm, Max excepted current = 4A
@@ -1074,7 +1094,7 @@ void StartDefaultTask(void const * argument)
 	 * @param MAX_Current - MAX current which could flow through Shunt resistor. From Electrical circuit.
 	 * @retval None
 	 */
-	myINA226.calibrate(0.047, 3.5);
+	//myINA226.calibrate(0.047, 3.5);
 
 
 	/*
@@ -1099,6 +1119,7 @@ void StartDefaultTask(void const * argument)
 	uint8_t pos[31]={0};
 	myEEPROM.readData(pos, 0x04, 31);
 
+	taskENTER_CRITICAL();
 	configuration.PowerOn = pos[0];
 	configuration.ControlType = pos[1];
 	num[0].bytes[0] = pos[2];
@@ -1136,6 +1157,7 @@ void StartDefaultTask(void const * argument)
 	configuration.Angle = num[5].number;
 	configuration.Orientation = pos[29];
 	configuration.NodeID = pos[30];
+	taskEXIT_CRITICAL();
 
 	/**
 	 * @brief Set Board name
@@ -1158,8 +1180,11 @@ void StartDefaultTask(void const * argument)
 	 * @param Integer value from 0 up to 255
 	 * @retval None
 	 */
+    taskENTER_CRITICAL();
+    uint16_t ID=configuration.NodeID;
+    taskEXIT_CRITICAL();
 
-	if (configuration.NodeID < 0 || configuration.NodeID > 255) {
+	if (ID < 0 || ID > 255) {
 		getNode().setNodeID(5);
 	} else {
 			getNode().setNodeID(configuration.NodeID);
@@ -1245,6 +1270,7 @@ void StartDefaultTask(void const * argument)
         }
 
         void readParamValue(const Name& name, Value& out_value) const override {
+        	taskENTER_CRITICAL();
         	if (name == "Power On/Off")
         		out_value.to<uavcan::protocol::param::Value::Tag::boolean_value>() = configuration.PowerOn;
         	else if (name == "Control Type")
@@ -1273,6 +1299,7 @@ void StartDefaultTask(void const * argument)
           		out_value.to<uavcan::protocol::param::Value::Tag::integer_value>() = configuration.NodeID;
         	//else
         		//if (DEBUG_MAIN == 1) printf("Can't read parameter. Check if type is correct\r\n");
+        	taskEXIT_CRITICAL();
         }
 
         int saveAllParams() override {
@@ -1285,7 +1312,9 @@ void StartDefaultTask(void const * argument)
 
         int eraseAllParams() override {
         	//if (DEBUG_MAIN == 1) printf("Erase - all params reset to default values\r\n");
+        	taskENTER_CRITICAL();
         	configuration = Parameters();
+        	taskEXIT_CRITICAL();
         	return 0;
         }
 
@@ -1374,11 +1403,16 @@ void StartDefaultTask(void const * argument)
 	/**
 	 * @brief if first time or calibration needed check
 	 */
-	//bool Calib = false;
-	if (configuration.Calibrate == true) {
+	taskENTER_CRITICAL();
+	bool Calib = configuration.Calibrate;
+	taskEXIT_CRITICAL();
+
+	if (Calib == true) {
 		osThreadDef(MotorCalibrateTask, StartMotorCalibrateTask, osPriorityNormal, 0, 128);
 		MotorCalibrateTaskHandle = osThreadCreate(osThread(MotorCalibrateTask), NULL);
+		taskENTER_CRITICAL();
 		configuration.Calibrate  = false;
+		taskEXIT_CRITICAL();
 	} else {
 		/**
 		 * @brief Start Motor, Encoder and FOC task
@@ -1449,13 +1483,16 @@ void StartDefaultTask(void const * argument)
 		if (main_events & MAIN_EVENT_BROADCAST)
 		{
 			xEventGroupClearBits(xMainEventGroupHandle, MAIN_EVENT_BROADCAST );
+			taskENTER_CRITICAL();
 			mot_status_msg.axis_id = configuration.Orientation;
-			mot_status_msg.motor_pos_rad_raw = myBLDC.shaft_angle_sp;
-			mot_status_msg.motor_pos_rad = myBLDC.shaft_angle;
-			mot_status_msg.bus_voltage =  myINA226.readBusVoltage();
-			mot_status_msg.bus_power = myINA226.readBusPower();
-			mot_status_msg.shunt_voltage = myINA226.readShuntVoltage();
-			mot_status_msg.shunt_current = myINA226.readShuntCurrent();
+			mot_status_msg.motor_pos_rad_raw = fmod(myBLDC.shaft_angle, 6.28f);
+			taskEXIT_CRITICAL();
+			mot_status_msg.motor_pos_rad = mot_status_msg.motor_pos_rad_raw;
+			//mot_status_msg.motor_pos_rad = myBLDC.shaft_angle;
+			//mot_status_msg.bus_voltage =  myINA226.readBusVoltage();
+			//mot_status_msg.bus_power = myINA226.readBusPower();
+			//mot_status_msg.shunt_voltage = myINA226.readShuntVoltage();
+			//mot_status_msg.shunt_current = myINA226.readShuntCurrent();
 			mot_status.broadcast(mot_status_msg);
 		}
 	    osDelay(1);
