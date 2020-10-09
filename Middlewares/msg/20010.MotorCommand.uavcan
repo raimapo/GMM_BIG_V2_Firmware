@@ -1,0 +1,7 @@
+#
+# Gimbal motor command
+#
+
+#Order: Pitch;Roll;Yaw
+#Torque command [-1:1]
+float16[3] cmd

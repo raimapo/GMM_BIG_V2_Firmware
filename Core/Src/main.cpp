@@ -34,6 +34,7 @@
 #include <uavcan/protocol/param_server.hpp>
 
 #include <msg/MotorStatus.hpp>
+#include <msg/MotorCommand.hpp>
 
 #include "as5048a.h"
 /* USER CODE END Includes */
@@ -47,7 +48,6 @@
 /* USER CODE BEGIN PD */
 #define MAIN_EVENT_SAVE_CONFIG	( 1 << 0 )
 #define MAIN_EVENT_BROADCAST    ( 1 << 1 )
-#define MAIN_EVENT_USE_DATA    ( 1 << 2 )
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -182,7 +182,7 @@ AS5048A angleSensor(&hspi1, GPIOA, GPIO_PIN_4, &htim4);
  * @note  - Hard coded Motor Driver Enable and Disable. Different drivers uses different approach to enable PWM's.
  * @note Motor Control thread declaration
  */
-BLDCMotor myBLDC(11, &htim3, &htim4); //motor pole number
+BLDCMotor myBLDC(&htim3, &htim4); //motor pole number
 void StartMotorTask(void const * argument);
 
 /**
@@ -875,6 +875,7 @@ void StartMotorTask(void const * argument)
 	uint8_t CT = 1;
 	uint8_t foc_mod = 0;
 	float CV = 0;
+	float angle = 0;
 
 	/**
 	 * @briefpower supply voltage
@@ -898,8 +899,11 @@ void StartMotorTask(void const * argument)
 	 * @note SinePWM or SpaceVectorPWM
 	 */
 	taskENTER_CRITICAL();
-	foc_mod = myBLDC.foc_modulation;
+	myBLDC.pole_pairs = configuration.PoleNumber;
+	foc_mod = configuration.FOCModulation;
+	angle = configuration.Angle;
 	taskEXIT_CRITICAL();
+
 	if (foc_mod == 0)
 		myBLDC.foc_modulation = FOCModulationType::SinePWM;
 	if (foc_mod == 1)
@@ -936,28 +940,30 @@ void StartMotorTask(void const * argument)
 	 * @brief PI controller configuration based on the control type
 	 * @note velocity PI controller parameters
 	 */
-	myBLDC.PI_velocity.P = 0.2f;
-	myBLDC.PI_velocity.I = 20.0f;
-	myBLDC.PI_velocity.voltage_limit = 6; //default voltage_power_supply/2
+	taskENTER_CRITICAL();
+	myBLDC.PI_velocity.P = configuration.VEL_P; //0.2f;
+	myBLDC.PI_velocity.I = configuration.VEL_I; //20.0f;
+	myBLDC.PI_velocity.voltage_limit = configuration.VEL_U_RAMP; // 6; //default voltage_power_supply/2
 	myBLDC.PI_velocity.voltage_ramp = 1000.0f;// jerk control using voltage voltage ramp
 
 	/**
 	 * @brief velocity low pass filtering
 	 * @note the lower the less filtered
 	 */
-	myBLDC.LPF_velocity.Tf = 0.01f;
+	myBLDC.LPF_velocity.Tf = configuration.VEL_FILTER_Tf; // 0.01f;
+	taskEXIT_CRITICAL();
 
 	/**
 	 * @brief Primary motor position
 	 * @note 0.017 rad is 1 degree. It is some error range.
 	 */
-	//while(angleSensor.getAngleInRad() > configuration.Angle+0.017 || angleSensor.getAngleInRad() < configuration.Angle-0.017)
-	//{
+	while(angleSensor.getAngleInRad() > angle+0.017 || angleSensor.getAngleInRad() < angle-0.017)
+	{
 
-		//myBLDC.controller = ControlType::angle;
-		//myBLDC.loopFOC();
-		//myBLDC.move(configuration.Angle);
-	//}
+		myBLDC.controller = ControlType::angle;
+		myBLDC.loopFOC();
+		myBLDC.move(angle);
+	}
 
 	/* Infinite loop */
 
@@ -1389,6 +1395,28 @@ void StartDefaultTask(void const * argument)
 	mot_status.init();
 	msg::MotorStatus mot_status_msg;
 
+	taskENTER_CRITICAL();
+	uint8_t Axis = configuration.Orientation;
+	taskEXIT_CRITICAL();
+
+	//Motor Command subscibers
+	uavcan::Subscriber<msg::MotorCommand> mot_sub(getNode());
+    const int mot_sub_start_res = mot_sub.start(
+    	[&](const uavcan::ReceivedDataStructure<msg::MotorCommand>& msg)
+		{
+			taskENTER_CRITICAL();
+			configuration.ControlValue = msg.cmd[Axis];
+			taskEXIT_CRITICAL();
+
+
+		}
+    );
+
+    if (mot_sub_start_res < 0)
+    {
+    	//DEBUG_Printf("Failed to start the key/value subscriber\r\n");
+    }
+
 	/**
 	 * @brief Start UAVCAN normal operation
 	 * @retval None
@@ -1484,7 +1512,7 @@ void StartDefaultTask(void const * argument)
 		{
 			xEventGroupClearBits(xMainEventGroupHandle, MAIN_EVENT_BROADCAST );
 			taskENTER_CRITICAL();
-			mot_status_msg.axis_id = configuration.Orientation;
+			mot_status_msg.axis_id = Axis;
 			mot_status_msg.motor_pos_rad_raw = fmod(myBLDC.shaft_angle, 6.28f);
 			taskEXIT_CRITICAL();
 			mot_status_msg.motor_pos_rad = mot_status_msg.motor_pos_rad_raw;

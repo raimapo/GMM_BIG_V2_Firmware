@@ -168,7 +168,7 @@ class BLDCMotor {
   		 * @param - Motor PWM timer reference
   		 * @param - Microseconds timer reference
   		 */
-	    BLDCMotor(uint8_t pp, TIM_HandleTypeDef* htim_motor, TIM_HandleTypeDef* htim_timer);
+	    BLDCMotor(TIM_HandleTypeDef* htim_motor, TIM_HandleTypeDef* htim_timer);
 
 	    /**
 	     * @brief change Driver state

@@ -3,7 +3,7 @@
 /**
  * @brief Constructor
  */
-BLDCMotor::BLDCMotor(uint8_t pp, TIM_HandleTypeDef* htim_motor, TIM_HandleTypeDef* htim_timer)
+BLDCMotor::BLDCMotor(TIM_HandleTypeDef* htim_motor, TIM_HandleTypeDef* htim_timer)
 {
   // Power supply woltage
   voltage_power_supply = DEF_POWER_SUPPLY;
@@ -11,7 +11,7 @@ BLDCMotor::BLDCMotor(uint8_t pp, TIM_HandleTypeDef* htim_motor, TIM_HandleTypeDe
   _tim_motor = htim_motor;
   _tim_timer = htim_timer;
 
-  pole_pairs = pp;
+  //pole_pairs = pp;
 
   // Velocity loop config
   // PI contoroller constant

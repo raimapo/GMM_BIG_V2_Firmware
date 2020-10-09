@@ -48,7 +48,7 @@ extern "C" {
 #include "ina226.h"
 #include "foc.h"
 
-#define DEBUG_MAIN 0
+//#define DEBUG_MAIN 0
 #define DEBUG_EEPROM 0
 //#define DEBUG_ENCODER 0
 //#define DEBUG_MOTOR 0
@@ -125,24 +125,6 @@ void Error_Handler(void);
  * UAVCAN Node ID-> uint8_t value up to 255
  * INA226 Enable True/False bool -> uint8_t 0/1
  */
-/*
-static struct Parameters {
-	bool PowerOn = false;
-	uint8_t ControlType = 1;
-	float ControlValue = 2.0f;
-	bool Calibrate = false;
-	uint8_t PoleNumber = 7;
-	uint8_t FOCModulation = 1;
-	float VEL_P = 0.5f;
-	float VEL_I = 10.0f;
-	float VEL_U_RAMP = 300.0f;
-	float VEL_FILTER_Tf = 0.005f;
-	float Angle = 0.0f;
-	uint8_t Orientation = 0;
-	uint8_t NodeID = 5;
-	bool EnableINA226 = false;
-} configuration;
-*/
 
 struct Parameters {
 	bool PowerOn;
