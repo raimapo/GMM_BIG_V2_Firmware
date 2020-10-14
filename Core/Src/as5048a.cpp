@@ -15,7 +15,6 @@ AS5048A::AS5048A(SPI_HandleTypeDef* hspi, GPIO_TypeDef* arg_ps, uint16_t arg_cs,
 #define EN_SPI HAL_GPIO_WritePin(_ps, _cs, GPIO_PIN_RESET);
 #define DIS_SPI HAL_GPIO_WritePin(_ps, _cs, GPIO_PIN_SET);
 
-
 /**
  * @brief Initialiser
  * @note Sets up the SPI interface
@@ -49,6 +48,7 @@ void AS5048A::close(){
 	}
 }
 
+
 /**
  * @brief Openthe SPI connection
  * @note SPI has an internal SPI-device counter, for each init()-call the close() function must be called exactly 1 time
@@ -78,15 +78,18 @@ uint8_t AS5048A::spiCalcEvenParity(uint16_t value){
 	return cnt & 0x1;
 }
 
+//#pragma GCC push_options
+//#pragma GCC optimize("O0")
+
 /*
  * @brief Read a register from the sensor
  * @note Takes the address of the register as a 16 bit word
  * @note Returns the value of the register
  */
 uint16_t AS5048A::read(uint16_t registerAddress){
-	uint8_t data[2];
+	volatile uint8_t data[2];
 
-	uint16_t command = 0b0100000000000000; // PAR=0 R/W=R
+	volatile uint16_t command = 0b0100000000000000; // PAR=0 R/W=R
 	command = command | registerAddress;
 
 	//Add a parity bit on the the MSB
@@ -125,9 +128,9 @@ uint16_t AS5048A::read(uint16_t registerAddress){
  */
 uint16_t AS5048A::write(uint16_t registerAddress, uint16_t data) {
 
-	uint8_t dat[2];
+	volatile uint8_t dat[2];
 
-	uint16_t command = 0b0000000000000000; // PAR=0 R/W=W
+	volatile uint16_t command = 0b0000000000000000; // PAR=0 R/W=W
 	command |= registerAddress;
 
 	//Add a parity bit on the the MSB
@@ -143,7 +146,7 @@ uint16_t AS5048A::write(uint16_t registerAddress, uint16_t data) {
 	while (HAL_SPI_GetState(_spi) != HAL_SPI_STATE_READY) {}
 	DIS_SPI;
 
-	uint16_t dataToSend = 0b0000000000000000;
+	volatile uint16_t dataToSend = 0b0000000000000000;
 	dataToSend |= data;
 
 	//Craft another packet including the data and parity
@@ -170,6 +173,8 @@ uint16_t AS5048A::write(uint16_t registerAddress, uint16_t data) {
 	//Return the data, stripping the parity and error bits
 	return (( ( dat[1] & 0xFF ) << 8 ) | ( dat[0] & 0xFF )) & ~0xC000;
 }
+
+//#pragma GCC pop_options
 
 /**
  * Returns the raw angle directly from the sensor
@@ -369,3 +374,4 @@ float AS5048A::initAbsoluteZero(){
   // return offset in radians
   return rotation / (float)16384 * _2PI;
 }
+

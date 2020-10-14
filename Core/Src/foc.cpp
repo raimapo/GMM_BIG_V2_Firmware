@@ -353,6 +353,7 @@ void BLDCMotor::setPhaseVoltage(float Uq, float angle_el) {
 	setPwm(3, Uc);
 }
 
+
 //Set voltage to the pwm pin
 //- function a bit optimised to get better performance
 // Here 1000 is a Timer Period

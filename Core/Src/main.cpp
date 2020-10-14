@@ -867,6 +867,7 @@ void StartMotorCalibrateTask(void const * argument)
   * @param None
   * @retval None
   */
+
 void StartMotorTask(void const * argument)
 {
   /* USER CODE BEGIN 5 */
