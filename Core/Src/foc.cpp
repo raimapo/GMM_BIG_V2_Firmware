@@ -13,11 +13,13 @@ BLDCMotor::BLDCMotor(TIM_HandleTypeDef* htim_motor, TIM_HandleTypeDef* htim_time
 
   //pole_pairs = pp;
 
+  uint32_t current_time = _tim_timer->Instance->CNT;
+
   // Velocity loop config
   // PI contoroller constant
   PI_velocity.P = DEF_PI_VEL_P;
   PI_velocity.I = DEF_PI_VEL_I;
-  PI_velocity.timestamp = _tim_timer->Instance->CNT;
+  PI_velocity.timestamp = current_time;
   PI_velocity.voltage_limit = voltage_power_supply/2;
   PI_velocity.voltage_ramp = DEF_PI_VEL_U_RAMP;
   PI_velocity.voltage_prev = 0;
@@ -25,7 +27,7 @@ BLDCMotor::BLDCMotor(TIM_HandleTypeDef* htim_motor, TIM_HandleTypeDef* htim_time
 
   // velocity low pass filter
   LPF_velocity.Tf = DEF_VEL_FILTER_Tf;
-  LPF_velocity.timestamp = _tim_timer->Instance->CNT;
+  LPF_velocity.timestamp = current_time;
   LPF_velocity.prev = 0;
 
   // position loop config
@@ -39,7 +41,7 @@ BLDCMotor::BLDCMotor(TIM_HandleTypeDef* htim_motor, TIM_HandleTypeDef* htim_time
   PI_velocity_index_search.I = DEF_PI_VEL_INDEX_I;
   PI_velocity_index_search.voltage_limit = voltage_power_supply/2;
   PI_velocity_index_search.voltage_ramp = DEF_PI_VEL_INDEX_U_RAMP;
-  PI_velocity_index_search.timestamp = _tim_timer->Instance->CNT;
+  PI_velocity_index_search.timestamp = current_time;
   PI_velocity_index_search.voltage_prev = 0;
   PI_velocity_index_search.tracking_error_prev = 0;
 
@@ -176,10 +178,17 @@ int BLDCMotor::absoluteZeroAlign() {
 
 //initialization function
 int  BLDCMotor::initFOC() {
-  // encoder alignment
-  osDelay(500);
-  int exit_flag = alignEncoder();
-  osDelay(500);
+	// encoder alignment
+	osDelay(500);
+	int exit_flag = alignEncoder();
+	osDelay(500);
+
+	uint32_t current_time = _tim_timer->Instance->CNT;
+	// Set all timestamps to current time
+    LPF_velocity.timestamp = current_time;
+	PI_velocity_index_search.timestamp = current_time;
+	PI_velocity.timestamp = current_time;
+
   return exit_flag;
 }
 
@@ -203,15 +212,15 @@ float BLDCMotor::shaftVelocity() {
 	{
 		Ts = ((float)(cur_counter + (MAX_UINT16_NUMBER - LPF_velocity.timestamp))) * 1e-6;
 	}
-  // quick fix for strange cases (micros overflow)
-  if(Ts <= 0 || Ts > 0.5) Ts = 1e-3;
-  // calculate the fitering
-  float alpha = LPF_velocity.Tf/(LPF_velocity.Tf + Ts);
-  float vel = alpha * LPF_velocity.prev + (1 - alpha) * encoder->getVelocity();
-  // save the variables
-  LPF_velocity.prev = vel;
-  LPF_velocity.timestamp = cur_counter;
-  return vel;
+    // quick fix for strange cases (micros overflow)
+    if(Ts <= 0 || Ts > 0.5) Ts = 1e-3;
+    // calculate the fitering
+    float alpha = LPF_velocity.Tf/(LPF_velocity.Tf + Ts);
+    float vel = alpha * LPF_velocity.prev + (1 - alpha) * encoder->getVelocity();
+    // save the variables
+    LPF_velocity.prev = vel;
+    LPF_velocity.timestamp = cur_counter;
+    return vel;
 }
 
 //Electrical angle calculation

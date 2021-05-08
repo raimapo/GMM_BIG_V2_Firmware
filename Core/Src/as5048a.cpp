@@ -78,8 +78,8 @@ uint8_t AS5048A::spiCalcEvenParity(uint16_t value){
 	return cnt & 0x1;
 }
 
-//#pragma GCC push_options
-//#pragma GCC optimize("O0")
+#pragma GCC push_options
+#pragma GCC optimize("O0")
 
 /*
  * @brief Read a register from the sensor
@@ -87,9 +87,9 @@ uint8_t AS5048A::spiCalcEvenParity(uint16_t value){
  * @note Returns the value of the register
  */
 uint16_t AS5048A::read(uint16_t registerAddress){
-	volatile uint8_t data[2];
+	uint8_t data[2];
 
-	volatile uint16_t command = 0b0100000000000000; // PAR=0 R/W=R
+	uint16_t command = 0b0100000000000000; // PAR=0 R/W=R
 	command = command | registerAddress;
 
 	//Add a parity bit on the the MSB
@@ -128,9 +128,9 @@ uint16_t AS5048A::read(uint16_t registerAddress){
  */
 uint16_t AS5048A::write(uint16_t registerAddress, uint16_t data) {
 
-	volatile uint8_t dat[2];
+	uint8_t dat[2];
 
-	volatile uint16_t command = 0b0000000000000000; // PAR=0 R/W=W
+	uint16_t command = 0b0000000000000000; // PAR=0 R/W=W
 	command |= registerAddress;
 
 	//Add a parity bit on the the MSB
@@ -146,7 +146,7 @@ uint16_t AS5048A::write(uint16_t registerAddress, uint16_t data) {
 	while (HAL_SPI_GetState(_spi) != HAL_SPI_STATE_READY) {}
 	DIS_SPI;
 
-	volatile uint16_t dataToSend = 0b0000000000000000;
+	uint16_t dataToSend = 0b0000000000000000;
 	dataToSend |= data;
 
 	//Craft another packet including the data and parity
@@ -174,7 +174,7 @@ uint16_t AS5048A::write(uint16_t registerAddress, uint16_t data) {
 	return (( ( dat[1] & 0xFF ) << 8 ) | ( dat[0] & 0xFF )) & ~0xC000;
 }
 
-//#pragma GCC pop_options
+#pragma GCC pop_options
 
 /**
  * Returns the raw angle directly from the sensor
@@ -277,7 +277,7 @@ float AS5048A::read2angle(uint16_t angle) {
  * @note angle is in radians [rad]
  */
 float AS5048A::getAngleInRad(){
-	taskENTER_CRITICAL();
+
 	// raw data from the sensor
 	float angle_data = getRawRotation();
 
@@ -295,7 +295,7 @@ float AS5048A::getAngleInRad(){
 	angle_data -= (int)zero_offset;
 	// return the full angle
 	// (number of full rotations)*2PI + current sensor angle
-	taskEXIT_CRITICAL();
+
  	return full_rotation_offset + ( angle_data / (float)16384) * _2PI;
 }
 

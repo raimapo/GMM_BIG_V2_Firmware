@@ -876,7 +876,7 @@ void StartMotorTask(void const * argument)
 	uint8_t CT = 1;
 	uint8_t foc_mod = 0;
 	float CV = 0;
-	float angle = 0;
+	float angles = 0;
 
 	/**
 	 * @briefpower supply voltage
@@ -902,40 +902,13 @@ void StartMotorTask(void const * argument)
 	taskENTER_CRITICAL();
 	myBLDC.pole_pairs = configuration.PoleNumber;
 	foc_mod = configuration.FOCModulation;
-	angle = configuration.Angle;
+	angles = configuration.Angle;
 	taskEXIT_CRITICAL();
 
 	if (foc_mod == 0)
 		myBLDC.foc_modulation = FOCModulationType::SinePWM;
 	if (foc_mod == 1)
 		myBLDC.foc_modulation = FOCModulationType::SpaceVectorPWM;
-
-	/**
-	 * @brief Enable DRV8313 and FOC drivers
-	 */
-	myBLDC.init();
-
-	/**
-	 * @brief align sensor and start FOC
-	 */
-	myBLDC.initFOC();
-
-	//if (DEBUG_MOTOR == 1) printf("Motor ready.\n");
-	//osDelay(10);
-	//if (DEBUG_MOTOR == 1) printf("Set the target voltage using serial terminal: \n");
-	osDelay(1000);
-
-	/**
-	 * @brief fixed value for motor voltage, velocity or angle
-	 */
-	//float target_voltage = -3;
-
-	/**
-	 * @brief Start UART callback for first time to accept motor control parameters
-	 * @note later Such receiver will be removed
-	 */
-	//HAL_UART_Receive_DMA(&huart1, (uint8_t *)str, 1);
-
 
 	/**
 	 * @brief PI controller configuration based on the control type
@@ -955,16 +928,43 @@ void StartMotorTask(void const * argument)
 	taskEXIT_CRITICAL();
 
 	/**
+	 * @brief Enable DRV8313 and FOC drivers
+	 */
+	myBLDC.init();
+
+	/**
+	 * @brief align sensor and start FOC
+	 */
+	myBLDC.initFOC();
+
+	//if (DEBUG_MOTOR == 1) printf("Motor ready.\n");
+	//osDelay(10);
+	//if (DEBUG_MOTOR == 1) printf("Set the target voltage using serial terminal: \n");
+	//osDelay(1000);
+
+	/**
+	 * @brief fixed value for motor voltage, velocity or angle
+	 */
+	//float target_voltage = -3;
+
+	/**
+	 * @brief Start UART callback for first time to accept motor control parameters
+	 * @note later Such receiver will be removed
+	 */
+	//HAL_UART_Receive_DMA(&huart1, (uint8_t *)str, 1);
+
+
+	/**
 	 * @brief Primary motor position
 	 * @note 0.017 rad is 1 degree. It is some error range.
 	 */
-	while(angleSensor.getAngleInRad() > angle+0.017 || angleSensor.getAngleInRad() < angle-0.017)
+	while(angleSensor.getAngleInRad() > angles+0.017 || angleSensor.getAngleInRad() < angles-0.017)
 	{
-
 		myBLDC.controller = ControlType::angle;
 		myBLDC.loopFOC();
-		myBLDC.move(angle);
+		myBLDC.move(angles);
 	}
+
 
 	/* Infinite loop */
 
@@ -1190,14 +1190,11 @@ void StartDefaultTask(void const * argument)
     taskENTER_CRITICAL();
     uint16_t ID=configuration.NodeID;
     taskEXIT_CRITICAL();
-
 	if (ID < 0 || ID > 255) {
 		getNode().setNodeID(5);
 	} else {
 			getNode().setNodeID(configuration.NodeID);
 	}
-
-
 	/**
 	 * @brief Start UAVCAN protocol
 	 * @retval None
@@ -1453,7 +1450,7 @@ void StartDefaultTask(void const * argument)
 	/**
 	 * @brief Enable AS5048A Encoder drivers
 	 */
-	angleSensor.init();
+	//angleSensor.init();
 
 	/**
 	 * @brief Start timer

@@ -43,7 +43,7 @@ extern "C" {
 // angle P params
 #define DEF_P_ANGLE_P 20
 // angle velocity limit default
-#define DEF_P_ANGLE_VEL_LIM 20
+#define DEF_P_ANGLE_VEL_LIM 2 //20
 // index search velocity
 #define DEF_INDEX_SEARCH_TARGET_VELOCITY 1
 // velocity PI controller params for index search
